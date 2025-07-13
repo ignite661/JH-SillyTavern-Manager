@@ -1,90 +1,104 @@
 #!/bin/bash
 
 # ==============================================================================
-# SillyTavern 启动/管理脚本 (JH-Manager v2.0 - pnpm 驱动版)
+# SillyTavern 启动/管理脚本 (JH-Manager v4.0 - 经典UI增强版)
 #
-# 作者: 纪贺科技 (ignite661) & AI
-# 仓库: https://github.com/ignite661/JH-SillyTavern-Manager
+# 作者: 纪贺科技 (ignite661) & 您
 #
-# v2.0: 全面转向 pnpm。使用 pnpm 启动和管理依赖，更高效、更稳定。
-#       代码已简化，不再需要指定 npm 或 pnpm 的绝对路径，因为安装脚本
-#       已正确配置了环境。
+# v4.0: 回归您设计的经典架构，并融合了更美观的用户界面和更清晰的提示。
+#       这是稳定结构和优秀体验的完美结合。
 # ==============================================================================
 
-# --- 函数 ---
-start_st() {
-    echo "正在启动 SillyTavern (pnpm 模式)..."
-    echo "请等待约 10-30 秒，直到看到 'SillyTavern is listening on port 7860' 或类似字样。"
-    echo "然后请在手机浏览器中访问: http://127.0.0.1:7860"
-    echo "--------------------------------------------------------"
-    
-    # 使用 pnpm 启动，它会自动找到正确的 node 环境
-    proot-distro login ubuntu --shared-tmp --user root -- bash -c " \
-        export PNPM_HOME=/root/.local/share/pnpm && \
-        export PATH=\$PNPM_HOME:\$PATH && \
-        cd /root/SillyTavern && \
-        pnpm start \
-    "
-    echo "--------------------------------------------------------"
-    echo "SillyTavern 已关闭或启动失败。"
+# --- 颜色定义 ---
+C_RESET='\033[0m'
+C_RED='\033[0;31m'
+C_GREEN='\033[0;32m'
+C_YELLOW='\033[0;33m'
+C_BLUE='\033[0;34m'
+C_CYAN='\033[0;36m'
+C_WHITE='\033[1;37m'
+
+# --- 全局变量 ---
+TAVERN_DIR="SillyTavern"
+
+# --- 功能函数 ---
+show_menu() {
+    clear
+    echo -e "${C_CYAN}===================================================${C_RESET}"
+    echo -e "${C_WHITE}         SillyTavern 智能管理器 v4.0          ${C_RESET}"
+    echo -e "${C_WHITE}                  by 纪贺                  ${C_RESET}"
+    echo -e "${C_CYAN}===================================================${C_RESET}"
+    echo
+    echo -e "  ${C_GREEN}1. 启动 SillyTavern${C_RESET}"
+    echo -e "  ${C_BLUE}2. 更新 SillyTavern 到最新版${C_RESET}"
+    echo -e "  ${C_BLUE}3. 重新安装依赖 (强制模式)${C_RESET}"
+    echo
+    echo -e "  ${C_YELLOW}q. 退出管理器${C_RESET}"
+    echo -e "${C_CYAN}---------------------------------------------------${C_RESET}"
 }
 
-update_st() {
-    echo "正在更新 SillyTavern..."
-    proot-distro login ubuntu --user root -- bash -c "cd /root/SillyTavern && git pull"
-    echo "--------------------------------------------------------"
-    echo "更新完成。如果看到 'Already up to date.' 说明已是最新版。"
+start_tavern() {
+    echo -e "\n${C_YELLOW}>>> 正在尝试启动 SillyTavern...${C_RESET}"
+    if [ ! -d "$TAVERN_DIR" ]; then
+        echo -e "\n${C_RED}错误：未找到 SillyTavern 目录！${C_RESET}"
+    elif [ ! -f "$TAVERN_DIR/server.js" ]; then
+        echo -e "\n${C_RED}错误：找不到启动文件 server.js！可能是安装不完整。${C_RESET}"
+    else
+        cd "$TAVERN_DIR"
+        echo -e "${C_WHITE}启动成功后，请在浏览器访问: http://127.0.0.1:8000 或 http://localhost:8000${C_RESET}"
+        echo -e "${C_WHITE}在 Termux 中按 Ctrl+C 即可停止运行。${C_RESET}"
+        echo -e "${C_CYAN}-------------------- LOGS --------------------${C_RESET}"
+        pnpm start
+        echo -e "${C_CYAN}----------------------------------------------${C_RESET}"
+        echo -e "\n${C_RED}SillyTavern 已关闭或启动失败。${C_RESET}"
+    fi
+    echo -e "\n${C_WHITE}按 Enter键 返回主菜单...${C_RESET}"
+    read
+}
+
+update_tavern() {
+    echo -e "\n${C_YELLOW}>>> 正在更新 SillyTavern...${C_RESET}"
+    if [ -d "$TAVERN_DIR" ]; then
+        cd "$TAVERN_DIR"
+        git pull
+        echo -e "\n${C_GREEN}更新完成！如果出现问题，建议使用选项3重新安装依赖。${C_RESET}"
+    else
+        echo -e "\n${C_RED}错误：未找到 SillyTavern 目录！${C_RESET}"
+    fi
+    echo -e "\n${C_WHITE}按 Enter键 返回主菜单...${C_RESET}"
+    read
 }
 
 reinstall_deps() {
-    echo "正在使用 pnpm 重新安装依赖..."
-    echo "这会比 npm 快很多，请耐心等待。"
-    
-    # 使用 pnpm 重装依赖
-    proot-distro login ubuntu --shared-tmp --user root -- bash -c " \
-        export PNPM_HOME=/root/.local/share/pnpm && \
-        export PATH=\$PNPM_HOME:\$PATH && \
-        cd /root/SillyTavern && \
-        rm -rf node_modules && \
-        pnpm install \
-    "
-    echo "--------------------------------------------------------"
-    echo "依赖重装完成。"
+    echo -e "\n${C_YELLOW}>>> 正在强制重新安装依赖...${C_RESET}"
+    if [ -d "$TAVERN_DIR" ]; then
+        cd "$TAVERN_DIR"
+        echo "  正在删除旧的依赖 (node_modules)..."
+        rm -rf node_modules
+        echo "  正在使用 pnpm 重新安装，请耐心等待..."
+        pnpm install
+        echo -e "\n${C_GREEN}依赖重新安装完成！${C_RESET}"
+    else
+        echo -e "\n${C_RED}错误：未找到 SillyTavern 目录！${C_RESET}"
+    fi
+    echo -e "\n${C_WHITE}按 Enter键 返回主菜单...${C_RESET}"
+    read
 }
 
-# --- 主菜单 ---
+# --- 主循环 ---
 while true; do
-    clear
-    echo "========================================"
-    echo "  纪贺 SillyTavern 管理器 (v2.0 pnpm)"
-    echo "========================================"
-    echo " 1. 启动 SillyTavern"
-    echo " 2. 更新 SillyTavern"
-    echo " 3. 重新安装依赖 (pnpm模式)"
-    echo " q. 退出"
-    echo "----------------------------------------"
+    show_menu
     read -p "请输入选项 [1-3, q]: " choice
 
     case $choice in
-        1)
-            start_st
-            read -p "按 Enter键 返回主菜单..."
-            ;;
-        2)
-            update_st
-            read -p "按 Enter键 返回主菜单..."
-            ;;
-        3)
-            reinstall_deps
-            read -p "按 Enter键 返回主菜单..."
-            ;;
-        q)
-            echo "正在退出..."
-            break
-            ;;
+        1) start_tavern ;;
+        2) update_tavern ;;
+        3) reinstall_deps ;;
+        q|Q)
+            echo -e "\n${C_YELLOW}正在退出... 感谢使用！${C_RESET}"
+            break ;;
         *)
-            echo "无效选项，请重试。"
-            sleep 1
-            ;;
-    ac
+            echo -e "\n${C_RED}无效的输入，请重新选择。${C_RESET}"
+            sleep 1 ;;
+    esac
 done
