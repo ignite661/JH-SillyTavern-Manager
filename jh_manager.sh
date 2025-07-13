@@ -1,30 +1,26 @@
 #!/bin/bash
 
 # ==============================================================================
-# SillyTavern 启动/管理脚本 (JH-Manager v1.1)
+# SillyTavern 启动/管理脚本 (JH-Manager v2.0 - pnpm 驱动版)
 #
 # 作者: 纪贺科技 (ignite661)
 # 仓库: https://github.com/ignite661/JH-SillyTavern-Manager
 #
-# v1.1: 使用绝对路径调用 npm，以兼容不加载 .bashrc 的 proot-distro 环境。
+# v2.0: 全面转向 pnpm。使用 pnpm 启动和管理依赖，更高效、更稳定。
+#       代码已简化，不再需要指定 npm 的绝对路径。
 # ==============================================================================
-
-# --- 配置 ---
-NODE_DIR_NAME="node-v20.12.2-linux-arm64"
-# 【关键修正】定义 npm 的绝对路径
-NPM_PATH="/root/${NODE_DIR_NAME}/bin/npm"
 
 # --- 函数 ---
 start_st() {
-    echo "正在启动 SillyTavern..."
-    echo "请等待约 10-30 秒，直到看到 'SillyTavern is listening on port 8000' 字样。"
-    echo "然后请在手机浏览器中访问: http://127.0.0.1:8000"
+    echo "正在启动 SillyTavern (pnpm 模式)..."
+    echo "请等待约 10-30 秒，直到看到 'SillyTavern is listening on port 7860' 或类似字样。"
+    echo "然后请在手机浏览器中访问: http://127.0.0.1:7860"
     echo "--------------------------------------------------------"
     
-    # 【关键修正】使用绝对路径启动
+    # 使用 pnpm 启动，更高效
     proot-distro login ubuntu --shared-tmp -- bash -c " \
         cd /root/SillyTavern && \
-        ${NPM_PATH} start \
+        pnpm start \
     "
     echo "--------------------------------------------------------"
     echo "SillyTavern 已关闭或启动失败。"
@@ -38,14 +34,14 @@ update_st() {
 }
 
 reinstall_deps() {
-    echo "正在重新安装依赖..."
-    echo "这可能需要几分钟时间，请耐心等待。"
+    echo "正在使用 pnpm 重新安装依赖..."
+    echo "这会比 npm 快很多，请耐心等待。"
     
-    # 【关键修正】使用绝对路径重装依赖
+    # 使用 pnpm 重装依赖
     proot-distro login ubuntu --shared-tmp -- bash -c " \
         cd /root/SillyTavern && \
         rm -rf node_modules && \
-        ${NPM_PATH} install \
+        pnpm install \
     "
     echo "--------------------------------------------------------"
     echo "依赖重装完成。"
@@ -55,11 +51,11 @@ reinstall_deps() {
 while true; do
     clear
     echo "========================================"
-    echo "  纪贺 SillyTavern 管理器 (v1.1)"
+    echo "  纪贺 SillyTavern 管理器 (v2.0 pnpm)"
     echo "========================================"
     echo " 1. 启动 SillyTavern"
     echo " 2. 更新 SillyTavern"
-    echo " 3. 重新安装依赖"
+    echo " 3. 重新安装依赖 (pnpm模式)"
     echo " q. 退出"
     echo "----------------------------------------"
     read -p "请输入选项 [1-3, q]: " choice
