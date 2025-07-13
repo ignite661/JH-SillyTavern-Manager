@@ -1,14 +1,19 @@
 #!/bin/bash
 
 # ==============================================================================
-# SillyTavern Termux 一键安装脚本 (JH-Installer v6.0.1 - 稳定修复版)
+# SillyTavern Termux 一键安装脚本 (JH-Installer v6.0 - 原生终极版)
+#
 # 作者: JiHe (纪贺) & 您
-# v6.0.1: 严格遵循您的稳定版逻辑，仅修复原版结尾缺失的 'fi' 语法错误。
+#
+# 更新日志 (v6.0):
+# - 革命性改变: 采纳您的天才构想，彻底放弃 proot-distro 和 Ubuntu 容器。
+# - 原生部署: 所有操作直接在 Termux 主环境中进行，最大化兼容性和稳定性。
+# - 自动依赖: 脚本第一步会自动安装 git, nodejs-lts 等核心依赖。
+# - 极致简化: 移除了所有复杂的环境穿越逻辑，代码更清晰，执行更可靠。
 # ==============================================================================
 
 # --- 脚本配置 ---
-# 注意：这里下载的管理器脚本需要您在 GitHub 上将其命名为 jh_manager_native.sh
-JH_MANAGER_URL="https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/jh_manager_native.sh"
+JH_MANAGER_URL="https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/jh_manager_native.sh" # 注意，管理器也换成了原生版
 ST_DIR_NAME="SillyTavern"
 ST_REPO_URL="https://github.com/SillyTavern/SillyTavern.git"
 
@@ -61,7 +66,6 @@ cd .. # 返回主目录
 
 # 步骤 5: 下载配套的管理脚本
 echo -e "${YELLOW}[步骤 5/5] 正在下载配套的原生管理脚本...${NC}"
-# 注意：这里我们下载后统一命名为 jh_manager.sh，方便用户使用
 if curl -o jh_manager.sh "${JH_MANAGER_URL}"; then
     chmod +x jh_manager.sh
     echo -e "${GREEN}\n🎉🎉🎉 最终的胜利！SillyTavern 已在原生 Termux 环境中完美部署！ 🎉🎉🎉${NC}"
@@ -70,4 +74,4 @@ if curl -o jh_manager.sh "${JH_MANAGER_URL}"; then
     echo -e "${YELLOW}./jh_manager.sh${NC}"
 else
     echo -e "${RED}错误：无法从 GitHub 下载您的 jh_manager.sh 脚本！${NC}"
-fi # <--- 这是唯一的、必须的补充，用来修复语法错误
+fi
