@@ -1,13 +1,15 @@
 #!/bin/bash
 
 # ==============================================================================
-# SillyTavern Termux 一键安装脚本 (JH-Installer v3.0 - 自愈健壮版)
+# SillyTavern Termux 一键安装脚本 (JH-Installer v3.1 - 核心逻辑优化版)
 #
 # 作者: JiHe (纪贺) & AI
 #
-# 更新日志 (v3.0):
-# - 鲁棒性增强: 新增【环境自检与修复模块】，可自动修复常见的 Termux
-#   'dpkg interrupted' 错误，实现真正的开箱即用一键安装。
+# 更新日志 (v3.1):
+# - 核心逻辑重构: 将 git clone 操作移至 Ubuntu 内部执行，彻底解决
+#   在部分设备上 Termux 的 /tmp 目录出现 'Read-only file system' 的问题。
+#   这使得安装流程更加原子化和可靠。
+# - 依赖内化: 在 Ubuntu 环境中直接安装 git，减少对外部环境的依赖。
 # ==============================================================================
 
 # ==============================================================================
@@ -38,59 +40,60 @@ run_in_ubuntu() {
 
 # --- 安装流程 ---
 
-# ==============================================================================
-# [新增模块] 步骤 0: 环境自检与修复
-# ==============================================================================
+# 步骤 0: 环境自检与修复
 echo -e "${YELLOW}[步骤 0/8] 正在进行 Termux 环境自检与修复...${NC}"
-# 这一步是关键！主动修复可能存在的 dpkg 中断问题。
-# 对于健康系统，此命令无任何副作用。
 dpkg --configure -a > /dev/null 2>&1
 echo -e "${GREEN}环境自检完成。${NC}"
 
 
+# 步骤 1: 准备 Termux 基础环境
 echo -e "${YELLOW}[步骤 1/8] 准备 Termux 基础环境...${NC}"
-# 首先更新包列表，然后才安装依赖
 pkg update -y
-# 现在再安装我们的核心依赖，成功率大大提高！
-pkg install -y proot-distro git wget curl
+pkg install -y proot-distro wget curl
 if ! command -v proot-distro &> /dev/null; then
     echo -e "${RED}致命错误: proot-distro 安装失败！请检查您的 Termux 或网络环境。${NC}"
     exit 1
 fi
 
+# 步骤 2: 安装 Ubuntu 22.04
 echo -e "${YELLOW}[步骤 2/8] 安装 Ubuntu 22.04...${NC}"
 if ! proot-distro list | grep -q "ubuntu"; then
     proot-distro install ubuntu
 fi
 
-echo -e "${YELLOW}[步骤 3/8] 更新 Ubuntu 内部环境...${NC}"
-run_in_ubuntu "apt-get update && apt-get upgrade -y && apt-get install -y build-essential python3"
+# 步骤 3: 更新 Ubuntu 内部环境 (核心改动点)
+echo -e "${YELLOW}[步骤 3/8] 更新 Ubuntu 内部环境并安装核心依赖...${NC}"
+# 在这里，我们把 git 也一起安装到 Ubuntu 内部
+run_in_ubuntu "apt-get update && apt-get upgrade -y && apt-get install -y build-essential python3 git"
 
+# 步骤 4: 部署 SillyTavern 源码 (核心改动点)
 echo -e "${YELLOW}[步骤 4/8] 部署 SillyTavern 源码...${NC}"
-UBUNTU_ROOTFS_PATH=$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu
-if [ ! -d "${UBUNTU_ROOTFS_PATH}${ST_DIR_IN_UBUNTU}" ]; then
-    # 使用 git clone 到 Termux 的临时目录，然后移动到 Ubuntu 内部
-    git clone ${ST_REPO_URL} /tmp/${ST_DIR_NAME}
-    if [ -d "/tmp/${ST_DIR_NAME}" ]; then
-        mv /tmp/${ST_DIR_NAME} "${UBUNTU_ROOTFS_PATH}${ST_DIR_IN_UBUNTU}"
-    else
-        echo -e "${RED}错误: git clone SillyTavern 失败！请检查网络或 GitHub 访问。${NC}"
+# 我们直接在 Ubuntu 内部进行 clone，不再使用外部 /tmp
+if ! run_in_ubuntu "[ -d '${ST_DIR_IN_UBUNTU}' ]"; then
+    echo "正在从 GitHub 克隆 SillyTavern..."
+    if ! run_in_ubuntu "git clone ${ST_REPO_URL} ${ST_DIR_IN_UBUNTU}"; then
+        echo -e "${RED}错误: git clone SillyTavern 失败！请检查上方具体的 git 错误信息。${NC}"
         exit 1
     fi
 fi
+echo -e "${GREEN}SillyTavern 源码部署成功。${NC}"
 
+# 步骤 5: 部署 Node.js
 echo -e "${YELLOW}[步骤 5/8] 部署 Node.js...${NC}"
 run_in_ubuntu "wget -c -O /root/${NODE_PKG_NAME}.tar.xz ${NODE_DOWNLOAD_URL}"
 run_in_ubuntu "cd /root && tar -xvf ${NODE_PKG_NAME}.tar.xz"
 
+# 步骤 6: 创建 Node.js 全局快捷方式
 echo -e "${YELLOW}[步骤 6/8] 创建 Node.js 全局快捷方式...${NC}"
 run_in_ubuntu "ln -sf ${NODE_PATH_IN_UBUNTU}/node /usr/local/bin/node"
 run_in_ubuntu "ln -sf ${NODE_PATH_IN_UBUNTU}/npm /usr/local/bin/npm"
 run_in_ubuntu "ln -sf ${NODE_PATH_IN_UBUNTU}/npx /usr/local/bin/npx"
 
+# 步骤 7: 安装内存优化工具 pnpm
 echo -e "${YELLOW}[步骤 7/8] 安装内存优化工具 pnpm...${NC}"
 run_in_ubuntu "npm install -g pnpm"
 
+# 步骤 8: 使用 pnpm 安装 SillyTavern 依赖
 echo -e "${YELLOW}[步骤 8/8] 使用 pnpm 安装 SillyTavern 依赖...${NC}"
 INSTALL_CMD="cd ${ST_DIR_IN_UBUNTU} && pnpm install"
 if ! run_in_ubuntu "${INSTALL_CMD}"; then
