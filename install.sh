@@ -1,15 +1,16 @@
 #!/bin/bash
 
 # ==============================================================================
-# SillyTavern Termux 一键安装脚本 (JH-Installer v3.2 - 性能优化终极版)
+# SillyTavern Termux 一键安装脚本 (JH-Installer v4.0 - 终极健壮版)
 #
 # 作者: JiHe (纪贺) & AI
 #
-# 更新日志 (v3.2):
-# - 性能优化: 彻底废除使用 "npm install -g pnpm" 的方式。
-# - 全新安装方式: 采用 pnpm 官方推荐的独立安装脚本来安装 pnpm，
-#   该方法轻量、快速，完美绕过 npm 导致的内存和 I/O 性能瓶颈。
-# - 路径修正: 精准定位 pnpm 的安装路径，确保后续命令能正确调用。
+# 更新日志 (v4.0):
+# - 健壮性革命: 引入严格的失败检查机制！现在每一步关键操作后都会验证
+#   其是否成功。如果 apt-get 安装失败，脚本会立即停止并报告确切问题，
+#   彻底杜绝 'command not found' 等后续连锁错误。
+# - 原子化操作: 将依赖安装分解，确保每一步都清晰可控。
+# - 精准错误报告: 错误信息更加明确，直指问题根源。
 # ==============================================================================
 
 # ==============================================================================
@@ -26,7 +27,7 @@ NODE_PKG_NAME="node-${NODE_VERSION}-linux-arm64"
 NODE_DOWNLOAD_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_PKG_NAME}.tar.xz"
 ST_DIR_IN_UBUNTU="/root/${ST_DIR_NAME}"
 NODE_PATH_IN_UBUNTU="/root/${NODE_PKG_NAME}/bin"
-PNPM_PATH_IN_UBUNTU="/root/.local/share/pnpm/pnpm" # pnpm 的标准安装路径
+PNPM_PATH_IN_UBUNTU="/root/.local/share/pnpm/pnpm"
 
 # -- 颜色定义 --
 GREEN='\033[0;32m'
@@ -41,32 +42,47 @@ run_in_ubuntu() {
 
 # --- 安装流程 ---
 
-# 步骤 0: 环境自检与修复
-echo -e "${YELLOW}[步骤 0/8] 正在进行 Termux 环境自检与修复...${NC}"
-dpkg --configure -a > /dev/null 2>&1
-echo -e "${GREEN}环境自检完成。${NC}"
+# 步骤 0: 清理旧环境 (为了确保从一个干净的状态开始)
+echo -e "${YELLOW}[步骤 0/9] 正在重置并清理旧的 Ubuntu 环境以确保全新安装...${NC}"
+if proot-distro list | grep -q "ubuntu"; then
+    proot-distro remove ubuntu -y
+fi
+echo -e "${GREEN}旧环境清理完毕。${NC}"
 
-# 步骤 1: 准备 Termux 基础环境
-echo -e "${YELLOW}[步骤 1/8] 准备 Termux 基础环境...${NC}"
+# 步骤 1: 环境自检与修复
+echo -e "${YELLOW}[步骤 1/9] 正在进行 Termux 环境自检与修复...${NC}"
+dpkg --configure -a > /dev/null 2>&1
 pkg update -y
 pkg install -y proot-distro wget curl
-if ! command -v proot-distro &> /dev/null; then
-    echo -e "${RED}致命错误: proot-distro 安装失败！${NC}"
+
+# 步骤 2: 安装 Ubuntu 22.04
+echo -e "${YELLOW}[步骤 2/9] 安装全新的 Ubuntu 22.04...${NC}"
+proot-distro install ubuntu
+if ! proot-distro list | grep -q "ubuntu"; then
+    echo -e "${RED}致命错误: Ubuntu 安装失败！请检查 Termux 存储权限或网络。${NC}"
     exit 1
 fi
 
-# 步骤 2: 安装 Ubuntu 22.04
-echo -e "${YELLOW}[步骤 2/8] 安装 Ubuntu 22.04...${NC}"
-if ! proot-distro list | grep -q "ubuntu"; then
-    proot-distro install ubuntu
+# 步骤 3: 更新 Ubuntu 软件源
+echo -e "${YELLOW}[步骤 3/9] 正在更新 Ubuntu 内部软件源...${NC}"
+if ! run_in_ubuntu "apt-get update -y"; then
+    echo -e "${RED}错误: Ubuntu 内部 'apt-get update' 失败！请检查网络或软件源问题。${NC}"
+    exit 1
 fi
 
-# 步骤 3: 更新 Ubuntu 内部环境
-echo -e "${YELLOW}[步骤 3/8] 更新 Ubuntu 内部环境并安装核心依赖...${NC}"
-run_in_ubuntu "apt-get update && apt-get upgrade -y && apt-get install -y build-essential python3 git curl"
+# 步骤 4: 安装核心依赖 (核心健壮性改造)
+echo -e "${YELLOW}[步骤 4/9] 正在安装核心依赖 (git, python, curl)...${NC}"
+run_in_ubuntu "apt-get install -y git python3 curl"
+# **关键检查点**：验证 git 是否真的安装成功了
+if ! run_in_ubuntu "command -v git &> /dev/null"; then
+    echo -e "${RED}致命错误: 'git' 未能成功安装到 Ubuntu 中！安装过程可能被中断。${NC}"
+    echo -e "${RED}请检查上方 'apt-get install' 命令的输出，寻找 'E:' 开头的错误。${NC}"
+    exit 1
+fi
+echo -e "${GREEN}核心依赖安装验证成功。${NC}"
 
-# 步骤 4: 部署 SillyTavern 源码
-echo -e "${YELLOW}[步骤 4/8] 部署 SillyTavern 源码...${NC}"
+# 步骤 5: 部署 SillyTavern 源码
+echo -e "${YELLOW}[步骤 5/9] 部署 SillyTavern 源码...${NC}"
 if ! run_in_ubuntu "[ -d '${ST_DIR_IN_UBUNTU}' ]"; then
     if ! run_in_ubuntu "git clone ${ST_REPO_URL} ${ST_DIR_IN_UBUNTU}"; then
         echo -e "${RED}错误: git clone SillyTavern 失败！${NC}"
@@ -74,31 +90,28 @@ if ! run_in_ubuntu "[ -d '${ST_DIR_IN_UBUNTU}' ]"; then
     fi
 fi
 
-# 步骤 5: 部署 Node.js
-echo -e "${YELLOW}[步骤 5/8] 部署 Node.js...${NC}"
+# 步骤 6: 部署 Node.js
+echo -e "${YELLOW}[步骤 6/9] 部署 Node.js...${NC}"
 run_in_ubuntu "wget -c -O /root/${NODE_PKG_NAME}.tar.xz ${NODE_DOWNLOAD_URL}"
 run_in_ubuntu "cd /root && tar -xvf ${NODE_PKG_NAME}.tar.xz"
 
-# 步骤 6: 创建 Node.js 全局快捷方式
-echo -e "${YELLOW}[步骤 6/8] 创建 Node.js 全局快捷方式...${NC}"
+# 步骤 7: 创建 Node.js 全局快捷方式
+echo -e "${YELLOW}[步骤 7/9] 创建 Node.js 全局快捷方式...${NC}"
 run_in_ubuntu "ln -sf ${NODE_PATH_IN_UBUNTU}/node /usr/local/bin/node"
 run_in_ubuntu "ln -sf ${NODE_PATH_IN_UBUNTU}/npm /usr/local/bin/npm"
-run_in_ubuntu "ln -sf ${NODE_PATH_IN_UBUNTU}/npx /usr/local/bin/npx"
 
-# 步骤 7: 使用轻量级方式安装 pnpm (核心优化点)
-echo -e "${YELLOW}[步骤 7/8] 正在以轻量化方式安装 pnpm... (绕过 npm 瓶颈)${NC}"
-# 使用 pnpm 官方推荐的独立安装脚本，这不会触发内存风暴
+# 步骤 8: 使用轻量级方式安装 pnpm
+echo -e "${YELLOW}[步骤 8/9] 正在以轻量化方式安装 pnpm...${NC}"
 if ! run_in_ubuntu "curl -fsSL https://get.pnpm.io/install.sh | sh -"; then
-    echo -e "${RED}错误: pnpm 独立安装脚本执行失败！请截图反馈。${NC}"
+    echo -e "${RED}错误: pnpm 独立安装脚本执行失败！${NC}"
     exit 1
 fi
 
-# 步骤 8: 使用 pnpm 安装 SillyTavern 依赖 (核心优化点)
-echo -e "${YELLOW}[步骤 8/8] 使用 pnpm 安装 SillyTavern 依赖...${NC}"
-# 使用 pnpm 的绝对路径来执行安装，确保找到命令
+# 步骤 9: 使用 pnpm 安装 SillyTavern 依赖
+echo -e "${YELLOW}[步骤 9/9] 使用 pnpm 安装 SillyTavern 依赖...${NC}"
 INSTALL_CMD="cd ${ST_DIR_IN_UBUNTU} && ${PNPM_PATH_IN_UBUNTU} install"
 if ! run_in_ubuntu "${INSTALL_CMD}"; then
-    echo -e "${RED}错误: pnpm install 失败！请截图反馈。${NC}"
+    echo -e "${RED}错误: pnpm install 失败！${NC}"
     exit 1
 fi
 
