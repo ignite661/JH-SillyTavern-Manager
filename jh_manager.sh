@@ -3,11 +3,12 @@
 # ==============================================================================
 # SillyTavern 启动/管理脚本 (JH-Manager v2.0 - pnpm 驱动版)
 #
-# 作者: 纪贺科技 (ignite661)
+# 作者: 纪贺科技 (ignite661) & AI
 # 仓库: https://github.com/ignite661/JH-SillyTavern-Manager
 #
 # v2.0: 全面转向 pnpm。使用 pnpm 启动和管理依赖，更高效、更稳定。
-#       代码已简化，不再需要指定 npm 的绝对路径。
+#       代码已简化，不再需要指定 npm 或 pnpm 的绝对路径，因为安装脚本
+#       已正确配置了环境。
 # ==============================================================================
 
 # --- 函数 ---
@@ -17,8 +18,10 @@ start_st() {
     echo "然后请在手机浏览器中访问: http://127.0.0.1:7860"
     echo "--------------------------------------------------------"
     
-    # 使用 pnpm 启动，更高效
-    proot-distro login ubuntu --shared-tmp -- bash -c " \
+    # 使用 pnpm 启动，它会自动找到正确的 node 环境
+    proot-distro login ubuntu --shared-tmp --user root -- bash -c " \
+        export PNPM_HOME=/root/.local/share/pnpm && \
+        export PATH=\$PNPM_HOME:\$PATH && \
         cd /root/SillyTavern && \
         pnpm start \
     "
@@ -28,7 +31,7 @@ start_st() {
 
 update_st() {
     echo "正在更新 SillyTavern..."
-    proot-distro login ubuntu -- bash -c "cd /root/SillyTavern && git pull"
+    proot-distro login ubuntu --user root -- bash -c "cd /root/SillyTavern && git pull"
     echo "--------------------------------------------------------"
     echo "更新完成。如果看到 'Already up to date.' 说明已是最新版。"
 }
@@ -38,7 +41,9 @@ reinstall_deps() {
     echo "这会比 npm 快很多，请耐心等待。"
     
     # 使用 pnpm 重装依赖
-    proot-distro login ubuntu --shared-tmp -- bash -c " \
+    proot-distro login ubuntu --shared-tmp --user root -- bash -c " \
+        export PNPM_HOME=/root/.local/share/pnpm && \
+        export PATH=\$PNPM_HOME:\$PATH && \
         cd /root/SillyTavern && \
         rm -rf node_modules && \
         pnpm install \
@@ -81,5 +86,5 @@ while true; do
             echo "无效选项，请重试。"
             sleep 1
             ;;
-    esac
+    ac
 done
