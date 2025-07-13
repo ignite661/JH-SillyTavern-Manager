@@ -1,15 +1,14 @@
 #!/bin/bash
 
 # ==============================================================================
-# SillyTavern Termux 一键安装脚本 (JH-Installer v7.0 - 最终版)
+# SillyTavern Termux 一键安装脚本 (JH-Installer v7.1 - 无人值班版)
 #
 # 作者: JiHe (纪贺) & Gemini
 # 仓库: https://github.com/ignite661/JH-SillyTavern-Manager
 #
-# 更新日志 (v7.0):
-# - 大一统: 将安装器与管理器生成逻辑合二为一，不再需要网络下载管理器。
-# - 界面美化: 生成的管理器自带彩色UI和更清晰的布局，提升用户体验。
-# - 逻辑优化: 整合了所有原生环境的最佳实践，确保稳定可靠。
+# 更新日志 (v7.1):
+# - 修复: 增加 --force-confnew 选项，解决因配置文件冲突导致的安装暂停问题。
+#              现在脚本已实现真正的“无人值守”全自动安装。
 # ==============================================================================
 
 # --- 颜色定义 ---
@@ -22,7 +21,7 @@ C_WHITE='\033[1;37m'
 
 # --- 欢迎信息 ---
 echo -e "${C_CYAN}=====================================================${C_RESET}"
-echo -e "${C_WHITE}  SillyTavern Termux 原生环境一键安装脚本 (最终版)  ${C_RESET}"
+echo -e "${C_WHITE}  SillyTavern Termux 原生环境一键安装脚本 (无人值班版)  ${C_RESET}"
 echo -e "${C_CYAN}=====================================================${C_RESET}"
 echo
 echo -e "本脚本将自动完成所有必要步骤，包括："
@@ -35,7 +34,8 @@ read -p "按 Enter 键开始安装，按 Ctrl+C 中止..."
 
 # --- 步骤 1: 安装核心依赖 ---
 echo -e "\n${C_YELLOW}>>> [1/4] 正在更新软件包并安装核心依赖...${C_RESET}"
-pkg update -y && pkg upgrade -y
+# 关键修复：使用 --force-confnew 选项避免因配置文件冲突而暂停
+pkg update -y && pkg upgrade -o Dpkg::Options::="--force-confnew" -y
 pkg install git nodejs-lts pnpm -y
 
 # 验证
@@ -183,4 +183,3 @@ echo -e "现在，请使用我们为您创建的专属管理器来操作："
 echo -e "  1. 在命令行输入 ${C_YELLOW}./jh_manager.sh${C_RESET}"
 echo -e "  2. 在弹出的菜单中选择 ${C_GREEN}'1'${C_RESET} 即可启动！"
 echo
-
