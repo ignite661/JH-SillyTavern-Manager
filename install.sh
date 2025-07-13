@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # ==============================================================================
-# SillyTavern Termux 一键安装脚本 (JH-Installer v5.0 - 空投绕行版)
+# SillyTavern Termux 一键安装脚本 (JH-Installer v5.1 - 智能适应版)
 #
 # 作者: JiHe (纪贺) & AI
 #
-# 更新日志 (v5.0):
-# - 革命性改变: 彻底绕过 apt 包管理器来安装 git。
-# - git 空投: 直接下载为 arm64 编译的静态 git 二进制文件，并放置到
-#   系统路径中。这能完美解决在部分设备上 apt 系统损坏导致无法安装软件的问题。
-# - 流程简化: 由于不再依赖 apt 安装 git，相关检查和步骤被重构。
+# 更新日志 (v5.1):
+# - 智能环境适应: 彻底改变安装逻辑。不再强制删除和重装 Ubuntu。
+# - 检查与决策: 脚本现在会先检查 Ubuntu 是否已存在。如果存在，则直接
+#   使用现有环境并跳过安装；如果不存在，才执行全新安装。
+# - 终极健壮性: 这种新逻辑完美解决了因无法删除旧环境而导致的安装失败问题。
 # ==============================================================================
 
 # ==============================================================================
@@ -27,7 +27,6 @@ NODE_DOWNLOAD_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_PKG_NAME}.tar.
 ST_DIR_IN_UBUNTU="/root/${ST_DIR_NAME}"
 NODE_PATH_IN_UBUNTU="/root/${NODE_PKG_NAME}/bin"
 PNPM_PATH_IN_UBUNTU="/root/.local/share/pnpm/pnpm"
-# 为 arm64 架构准备的静态 git 二进制文件的下载地址
 STATIC_GIT_URL="https://github.com/a-lucas/git-static-arm64/releases/download/v2.33.0.1-static/git"
 
 # -- 颜色定义 --
@@ -43,24 +42,23 @@ run_in_ubuntu() {
 
 # --- 安装流程 ---
 
-# 步骤 0: 清理旧环境
-echo -e "${YELLOW}[步骤 0/8] 正在重置并清理旧的 Ubuntu 环境以确保全新安装...${NC}"
-if proot-distro list | grep -q "ubuntu"; then
-    proot-distro remove ubuntu -y
-fi
-
-# 步骤 1: 准备 Termux 和 Ubuntu
-echo -e "${YELLOW}[步骤 1/8] 准备 Termux 环境并安装 Ubuntu...${NC}"
+# 步骤 1: 准备 Termux 和 Ubuntu (智能适应逻辑)
+echo -e "${YELLOW}[步骤 1/8] 准备 Termux 环境并检查 Ubuntu...${NC}"
 pkg update -y && pkg install -y proot-distro wget curl
-proot-distro install ubuntu
-if ! proot-distro list | grep -q "ubuntu"; then
-    echo -e "${RED}致命错误: Ubuntu 安装失败！${NC}"
-    exit 1
+
+if proot-distro list | grep -q "ubuntu"; then
+    echo -e "${GREEN}检测到 Ubuntu 已存在，将直接使用现有环境，跳过安装步骤。${NC}"
+else
+    echo -e "${YELLOW}未检测到 Ubuntu, 正在进行全新安装...${NC}"
+    if ! proot-distro install ubuntu; then
+        echo -e "${RED}致命错误: Ubuntu 全新安装失败！请检查网络或存储空间。${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}Ubuntu 全新安装成功。${NC}"
 fi
 
 # 步骤 2: 更新软件源并安装基础依赖 (不包括 git)
 echo -e "${YELLOW}[步骤 2/8] 更新软件源并安装基础依赖 (python, curl)...${NC}"
-# 我们仍然尝试运行 apt，但不再依赖它安装 git
 run_in_ubuntu "apt-get update -y && apt-get install -y python3 curl --no-install-recommends || true"
 echo -e "${GREEN}基础依赖安装尝试完成 (忽略可能的 apt 错误)。${NC}"
 
@@ -68,21 +66,25 @@ echo -e "${GREEN}基础依赖安装尝试完成 (忽略可能的 apt 错误)。$
 echo -e "${YELLOW}[步骤 3/8] 正在“空投” Git (绕过 apt)...${NC}"
 GIT_INSTALL_CMD="wget -q '${STATIC_GIT_URL}' -O /usr/local/bin/git && chmod +x /usr/local/bin/git"
 if ! run_in_ubuntu "${GIT_INSTALL_CMD}"; then
-    echo -e "${RED}致命错误: Git '空投' 失败！请检查网络或 URL 是否有效。${NC}"
+    echo -e "${RED}致命错误: Git '空投' 失败！${NC}"
     exit 1
 fi
-# 验证 '空投' 是否成功
 if ! run_in_ubuntu "command -v git &> /dev/null"; then
-    echo -e "${RED}致命错误: '空投' 的 Git 未能被系统识别！安装失败。${NC}"
+    echo -e "${RED}致命错误: '空投' 的 Git 未能被系统识别！${NC}"
     exit 1
 fi
 echo -e "${GREEN}Git '空投' 成功并验证通过！${NC}"
 
 # 步骤 4: 部署 SillyTavern 源码
-echo -e "${YELLOW}[步骤 4/8] 使用新安装的 Git 部署 SillyTavern 源码...${NC}"
-if ! run_in_ubuntu "git clone ${ST_REPO_URL} ${ST_DIR_IN_UBUNTU}"; then
-    echo -e "${RED}错误: git clone SillyTavern 失败！${NC}"
-    exit 1
+echo -e "${YELLOW}[步骤 4/8] 使用 Git 部署 SillyTavern 源码...${NC}"
+# 如果目录已存在，则不进行 clone，防止出错
+if ! run_in_ubuntu "[ -d '${ST_DIR_IN_UBUNTU}' ]"; then
+    if ! run_in_ubuntu "git clone ${ST_REPO_URL} ${ST_DIR_IN_UBUNTU}"; then
+        echo -e "${RED}错误: git clone SillyTavern 失败！${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}SillyTavern 目录已存在，跳过 clone。${NC}"
 fi
 
 # 步骤 5: 部署 Node.js
