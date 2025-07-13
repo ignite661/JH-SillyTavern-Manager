@@ -1,77 +1,186 @@
 #!/bin/bash
 
 # ==============================================================================
-# SillyTavern Termux 一键安装脚本 (JH-Installer v6.0 - 原生终极版)
+# SillyTavern Termux 一键安装脚本 (JH-Installer v7.0 - 最终版)
 #
-# 作者: JiHe (纪贺) & 您
+# 作者: JiHe (纪贺) & Gemini
+# 仓库: https://github.com/ignite661/JH-SillyTavern-Manager
 #
-# 更新日志 (v6.0):
-# - 革命性改变: 采纳您的天才构想，彻底放弃 proot-distro 和 Ubuntu 容器。
-# - 原生部署: 所有操作直接在 Termux 主环境中进行，最大化兼容性和稳定性。
-# - 自动依赖: 脚本第一步会自动安装 git, nodejs-lts 等核心依赖。
-# - 极致简化: 移除了所有复杂的环境穿越逻辑，代码更清晰，执行更可靠。
+# 更新日志 (v7.0):
+# - 大一统: 将安装器与管理器生成逻辑合二为一，不再需要网络下载管理器。
+# - 界面美化: 生成的管理器自带彩色UI和更清晰的布局，提升用户体验。
+# - 逻辑优化: 整合了所有原生环境的最佳实践，确保稳定可靠。
 # ==============================================================================
 
-# --- 脚本配置 ---
-JH_MANAGER_URL="https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/jh_manager_native.sh" # 注意，管理器也换成了原生版
-ST_DIR_NAME="SillyTavern"
-ST_REPO_URL="https://github.com/SillyTavern/SillyTavern.git"
+# --- 颜色定义 ---
+C_RESET='\033[0m'
+C_RED='\033[0;31m'
+C_GREEN='\033[0;32m'
+C_YELLOW='\033[0;33m'
+C_CYAN='\033[0;36m'
+C_WHITE='\033[1;37m'
 
-# -- 颜色定义 --
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+# --- 欢迎信息 ---
+echo -e "${C_CYAN}=====================================================${C_RESET}"
+echo -e "${C_WHITE}  SillyTavern Termux 原生环境一键安装脚本 (最终版)  ${C_RESET}"
+echo -e "${C_CYAN}=====================================================${C_RESET}"
+echo
+echo -e "本脚本将自动完成所有必要步骤，包括："
+echo -e "1. 安装 ${C_GREEN}Git, Node.js (LTS), pnpm${C_RESET} 等核心依赖。"
+echo -e "2. 从官方仓库克隆 ${C_GREEN}SillyTavern${C_RESET}。"
+echo -e "3. 安装所有项目依赖。"
+echo -e "4. 创建一个功能强大且界面美观的 ${C_GREEN}管理器 (jh_manager.sh)${C_RESET}。"
+echo
+read -p "按 Enter 键开始安装，按 Ctrl+C 中止..."
 
-# --- 安装流程 ---
+# --- 步骤 1: 安装核心依赖 ---
+echo -e "\n${C_YELLOW}>>> [1/4] 正在更新软件包并安装核心依赖...${C_RESET}"
+pkg update -y && pkg upgrade -y
+pkg install git nodejs-lts pnpm -y
 
-# 步骤 1: 准备 Termux 原生环境 (您的方案!)
-echo -e "${YELLOW}[步骤 1/5] 正在准备 Termux 原生环境...${NC}"
-pkg update -y && pkg install -y git nodejs-lts curl jq
-
-# 验证核心组件
-if ! command -v git &> /dev/null || ! command -v node &> /dev/null; then
-    echo -e "${RED}致命错误: git 或 nodejs-lts 未能成功安装到 Termux 环境中！${NC}"
+# 验证
+if ! command -v node &> /dev/null || ! command -v pnpm &> /dev/null; then
+    echo -e "\n${C_RED}致命错误: Node.js 或 pnpm 未能成功安装！脚本中止。${C_RESET}"
     exit 1
 fi
-echo -e "${GREEN}Termux 原生环境准备就绪！Git 和 Node.js (LTS) 已安装。${NC}"
-node -v # 显示 node 版本以供确认
+echo -e "${C_GREEN}✓ 核心依赖安装成功！${C_RESET}"
+echo -n "  Node.js 版本: "; node -v
+echo -n "  pnpm 版本: "; pnpm -v
 
-# 步骤 2: 部署 SillyTavern 源码
-echo -e "${YELLOW}[步骤 2/5] 正在将 SillyTavern 克隆到主目录...${NC}"
-if [ -d "$ST_DIR_NAME" ]; then
-    echo -e "${GREEN}SillyTavern 目录已存在，跳过克隆。${NC}"
+# --- 步骤 2: 克隆 SillyTavern 仓库 ---
+echo -e "\n${C_YELLOW}>>> [2/4] 正在从 GitHub 克隆 SillyTavern...${C_RESET}"
+if [ -d "SillyTavern" ]; then
+    echo "  检测到已存在的 SillyTavern 目录，跳过克隆。"
 else
-    if ! git clone ${ST_REPO_URL} ${ST_DIR_NAME}; then
-        echo -e "${RED}错误: git clone SillyTavern 失败！请检查网络。${NC}"
+    if ! git clone https://github.com/SillyTavern/SillyTavern.git; then
+        echo -e "\n${C_RED}错误: 克隆 SillyTavern 失败！请检查您的网络连接。${C_RESET}"
         exit 1
     fi
 fi
+echo -e "${C_GREEN}✓ SillyTavern 克隆完成！${C_RESET}"
 
-# 步骤 3: 安装 pnpm
-echo -e "${YELLOW}[步骤 3/5] 正在全局安装 pnpm...${NC}"
-if ! npm i -g pnpm; then
-    echo -e "${RED}错误: pnpm 安装失败！${NC}"
-    exit 1
-fi
-
-# 步骤 4: 安装 SillyTavern 依赖
-echo -e "${YELLOW}[步骤 4/5] 进入 SillyTavern 目录并使用 pnpm 安装依赖...${NC}"
-cd ${ST_DIR_NAME}
+# --- 步骤 3: 安装项目依赖 ---
+echo -e "\n${C_YELLOW}>>> [3/4] 正在安装项目依赖，这可能需要几分钟...${C_RESET}"
+cd SillyTavern
 if ! pnpm install; then
-    echo -e "${RED}错误: pnpm install 失败！${NC}"
+    echo -e "\n${C_RED}错误: 'pnpm install' 执行失败！${C_RESET}"
     exit 1
 fi
-cd .. # 返回主目录
+cd ..
+echo -e "${C_GREEN}✓ 项目依赖安装成功！${C_RESET}"
 
-# 步骤 5: 下载配套的管理脚本
-echo -e "${YELLOW}[步骤 5/5] 正在下载配套的原生管理脚本...${NC}"
-if curl -o jh_manager.sh "${JH_MANAGER_URL}"; then
-    chmod +x jh_manager.sh
-    echo -e "${GREEN}\n🎉🎉🎉 最终的胜利！SillyTavern 已在原生 Termux 环境中完美部署！ 🎉🎉🎉${NC}"
-    echo "您现在可以通过运行 './jh_manager.sh' 脚本来管理 SillyTavern。"
-    echo "运行以下命令启动管理器:"
-    echo -e "${YELLOW}./jh_manager.sh${NC}"
-else
-    echo -e "${RED}错误：无法从 GitHub 下载您的 jh_manager.sh 脚本！${NC}"
-fi
+# --- 步骤 4: 创建智能管理器 ---
+echo -e "\n${C_YELLOW}>>> [4/4] 正在创建智能管理器 (jh_manager.sh)...${C_RESET}"
+cat << 'EOF' > "$HOME/jh_manager.sh"
+#!/bin/bash
+
+# --- 颜色定义 ---
+C_RESET='\033[0m'
+C_RED='\033[0;31m'
+C_GREEN='\033[0;32m'
+C_YELLOW='\033[0;33m'
+C_BLUE='\033[0;34m'
+C_CYAN='\033[0;36m'
+C_WHITE='\033[1;37m'
+
+# --- 全局变量 ---
+TAVERN_DIR="$HOME/SillyTavern"
+
+# --- 功能函数 ---
+show_menu() {
+    clear
+    echo -e "${C_CYAN}===================================================${C_RESET}"
+    echo -e "${C_WHITE}         SillyTavern 智能管理器 v1.1          ${C_RESET}"
+    echo -e "${C_WHITE}                  by 纪贺 & Gemini              ${C_RESET}"
+    echo -e "${C_CYAN}===================================================${C_RESET}"
+    echo
+    echo -e "  ${C_GREEN}1. 启动 SillyTavern${C_RESET}"
+    echo -e "  ${C_BLUE}2. 更新 SillyTavern 到最新版${C_RESET}"
+    echo -e "  ${C_BLUE}3. 重新安装依赖 (强制模式)${C_RESET}"
+    echo
+    echo -e "  ${C_YELLOW}q. 退出管理器${C_RESET}"
+    echo -e "${C_CYAN}---------------------------------------------------${C_RESET}"
+}
+
+start_tavern() {
+    echo -e "\n${C_YELLOW}>>> 正在尝试启动 SillyTavern...${C_RESET}"
+    if [ ! -d "$TAVERN_DIR" ]; then
+        echo -e "\n${C_RED}错误：未找到 SillyTavern 目录！${C_RESET}"
+    elif [ ! -f "$TAVERN_DIR/server.js" ]; then
+        echo -e "\n${C_RED}错误：找不到启动文件 server.js！可能是安装不完整。${C_RESET}"
+    else
+        cd "$TAVERN_DIR"
+        echo -e "${C_WHITE}启动成功后，请在浏览器访问: http://127.0.0.1:8000 或 http://localhost:8000${C_RESET}"
+        echo -e "${C_WHITE}在 Termux 中按 Ctrl+C 即可停止运行。${C_RESET}"
+        echo -e "${C_CYAN}-------------------- LOGS --------------------${C_RESET}"
+        npm start
+        echo -e "${C_CYAN}----------------------------------------------${C_RESET}"
+        echo -e "\n${C_RED}SillyTavern 已关闭或启动失败。${C_RESET}"
+    fi
+    echo -e "\n${C_WHITE}按 Enter键 返回主菜单...${C_RESET}"
+    read
+}
+
+update_tavern() {
+    echo -e "\n${C_YELLOW}>>> 正在更新 SillyTavern...${C_RESET}"
+    if [ -d "$TAVERN_DIR" ]; then
+        cd "$TAVERN_DIR"
+        git pull
+        echo -e "\n${C_GREEN}更新完成！如果出现问题，建议使用选项3重新安装依赖。${C_RESET}"
+    else
+        echo -e "\n${C_RED}错误：未找到 SillyTavern 目录！${C_RESET}"
+    fi
+    echo -e "\n${C_WHITE}按 Enter键 返回主菜单...${C_RESET}"
+    read
+}
+
+reinstall_deps() {
+    echo -e "\n${C_YELLOW}>>> 正在强制重新安装依赖...${C_RESET}"
+    if [ -d "$TAVERN_DIR" ]; then
+        cd "$TAVERN_DIR"
+        echo "  正在删除旧的依赖 (node_modules)..."
+        rm -rf node_modules
+        echo "  正在使用 pnpm 重新安装，请耐心等待..."
+        pnpm install
+        echo -e "\n${C_GREEN}依赖重新安装完成！${C_RESET}"
+    else
+        echo -e "\n${C_RED}错误：未找到 SillyTavern 目录！${C_RESET}"
+    fi
+    echo -e "\n${C_WHITE}按 Enter键 返回主菜单...${C_RESET}"
+    read
+}
+
+# --- 主循环 ---
+while true; do
+    show_menu
+    read -p "请输入选项 [1-3, q]: " choice
+
+    case $choice in
+        1) start_tavern ;;
+        2) update_tavern ;;
+        3) reinstall_deps ;;
+        q|Q)
+            echo -e "\n${C_YELLOW}正在退出... 感谢使用！${C_RESET}"
+            break ;;
+        *)
+            echo -e "\n${C_RED}无效的输入，请重新选择。${C_RESET}"
+            sleep 1 ;;
+    esac
+done
+EOF
+
+# 赋予管理器脚本执行权限
+chmod +x "$HOME/jh_manager.sh"
+echo -e "${C_GREEN}✓ 智能管理器创建成功！${C_RESET}"
+
+# --- 安装完成 ---
+echo
+echo -e "${C_CYAN}=====================================================${C_RESET}"
+echo -e "${C_GREEN}    🎉🎉🎉 恭喜！SillyTavern 已全部安装完成！ 🎉🎉🎉    ${C_RESET}"
+echo -e "${C_CYAN}=====================================================${C_RESET}"
+echo
+echo -e "现在，请使用我们为您创建的专属管理器来操作："
+echo -e "  1. 在命令行输入 ${C_YELLOW}./jh_manager.sh${C_RESET}"
+echo -e "  2. 在弹出的菜单中选择 ${C_GREEN}'1'${C_RESET} 即可启动！"
+echo
+
