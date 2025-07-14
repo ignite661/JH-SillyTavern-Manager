@@ -1,12 +1,11 @@
 #!/bin/bash
 
 # ==============================================================================
-# SillyTavern 启动/管理脚本 (JH-Manager v3.1 - UI美化版)
+# SillyTavern 启动/管理脚本 (JH-Manager v3.2 - 声明版)
 #
 # 作者: 纪贺 (ignite661)
 #
-# v3.1: 严格基于最稳定的 v3.0 原生版，仅进行界面美化和文字优化。
-#       核心功能和命令未做任何改动，确保100%的稳定性。
+# v3.2: 在UI中加入了免费声明和联系方式，保护用户权益。
 # ==============================================================================
 
 # --- 颜色定义 ---
@@ -29,8 +28,8 @@ start_st() {
     echo -e "届时请在手机浏览器中访问: ${C_GREEN}http://127.0.0.1:8000${C_RESET}"
     echo -e "${C_CYAN}--------------------------------------------------------${C_RESET}"
     
-    if [ -d "$ST_DIR_NAME" ]; then
-        cd "$ST_DIR_NAME" && pnpm start
+    if [ -d "$HOME/$ST_DIR_NAME" ]; then
+        cd "$HOME/$ST_DIR_NAME" && pnpm start
     else
         echo -e "${C_RED}错误: 未找到 SillyTavern 目录！${C_RESET}"
     fi
@@ -42,8 +41,8 @@ update_st() {
     clear
     echo -e "${C_YELLOW}正在更新 SillyTavern...${C_RESET}"
     echo -e "${C_CYAN}--------------------------------------------------------${C_RESET}"
-    if [ -d "$ST_DIR_NAME" ]; then
-        cd "$ST_DIR_NAME" && git pull && cd ..
+    if [ -d "$HOME/$ST_DIR_NAME" ]; then
+        cd "$HOME/$ST_DIR_NAME" && git pull && cd "$HOME"
     else
         echo -e "${C_RED}错误: 未找到 SillyTavern 目录！${C_RESET}"
     fi
@@ -55,13 +54,13 @@ reinstall_deps() {
     clear
     echo -e "${C_YELLOW}正在使用 pnpm 重新安装依赖... (这可能需要几分钟)${C_RESET}"
     echo -e "${C_CYAN}--------------------------------------------------------${C_RESET}"
-    if [ -d "$ST_DIR_NAME" ]; then
-        cd "$ST_DIR_NAME"
+    if [ -d "$HOME/$ST_DIR_NAME" ]; then
+        cd "$HOME/$ST_DIR_NAME"
         echo "正在删除旧依赖..."
         rm -rf node_modules
         echo "正在安装新依赖..."
         pnpm install
-        cd ..
+        cd "$HOME"
         echo -e "${C_GREEN}依赖重装完成。${C_RESET}"
     else
         echo -e "${C_RED}错误: 未找到 SillyTavern 目录！${C_RESET}"
@@ -73,8 +72,12 @@ reinstall_deps() {
 while true; do
     clear
     echo -e "${C_CYAN}========================================"
-    echo -e "  ${C_WHITE}纪贺 SillyTavern 管理器 (v3.1 UI版)${C_RESET}"
+    echo -e "  ${C_WHITE}纪贺 SillyTavern 管理器 (v3.2 UI版)${C_RESET}"
     echo -e "${C_CYAN}========================================"
+    # <--- 新增部分 --->
+    echo -e " ${C_YELLOW}本程序完全免费 | Bug反馈: wjj373247085@163.com${C_RESET}"
+    echo -e "----------------------------------------"
+    # <--- 新增部分结束 --->
     echo -e " ${C_GREEN}1. 启动 SillyTavern${C_RESET}"
     echo -e " ${C_BLUE}2. 更新 SillyTavern${C_RESET}"
     echo -e " ${C_YELLOW}3. 重新安装依赖 (解决更新后问题)${C_RESET}"
@@ -105,3 +108,4 @@ while true; do
             ;;
     esac
 done
+
