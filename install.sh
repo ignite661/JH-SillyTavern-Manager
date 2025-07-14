@@ -1,12 +1,13 @@
 #!/bin/bash
 #
 # ==============================================================================
-# SillyTavern Termux 一键安装脚本 (JH-Installer v6.4 - 声明版)
+# SillyTavern Termux 一键安装脚本 (JH-Installer v6.5 - 修复版)
 #
 # 作者: JiHe (纪贺)
 #
-# v6.4 更新:
-# - 新增: 脚本启动时的重要免责声明，保护开发者和用户。
+# v6.5 更新:
+# - 修复: 首次安装后自动进入UI时，因stdin污染导致的无限循环bug。
+# - 修复: 为 'pkg update' 也添加了--force-confold参数，实现完全无交互。
 # ==============================================================================
 
 # 脚本出错时立即退出
@@ -33,9 +34,8 @@ echo -e "${CYAN}   欢迎使用 纪贺SillyTavern 一键安装脚本   ${NC}"
 echo -e "${CYAN}=============================================${NC}"
 echo
 
-# <--- 新增部分开始 --->
 echo -e "${YELLOW}------------------- 重要声明 (请仔细阅读) -------------------${NC}"
-echo -e "本脚本由作者 ${GREEN}纪贺(ignite661)${NC} 开发，旨在学习，完全 ${GREEN}免费${NC} 并遵循开源精神。"
+echo -e "本脚本由作者 ${GREEN}纪贺(ignite661)${NC} 开发，完全 ${GREEN}免费${NC} 并遵循开源精神。"
 echo -e "严禁任何人将此脚本及管理器用于任何形式的 ${RED}商业用途${NC} 或 ${RED}倒卖行为${NC}。"
 echo
 echo -e "${RED}!!! 警告: 如果您是付费购买得到的本脚本，说明您已被骗！${NC}"
@@ -47,7 +47,6 @@ echo -e "${YELLOW}-------------------------------------------------------------$
 echo
 echo -e "声明展示完毕，安装将在 8 秒后自动开始..."
 sleep 8
-# <--- 新增部分结束 --->
 
 
 echo -e "${YELLOW}本脚本将全自动为您在Termux中部署SillyTavern...${NC}"
@@ -57,7 +56,6 @@ sleep 3
 echo
 echo -e "${CYAN}[步骤 1/5] 正在全自动准备 Termux 运行环境...${NC}"
 echo "这将更新软件包并安装必要组件，全程无需手动干预。"
-# 最终修正行 (为 update 和 install 都加上了参数)
 pkg update -y -o Dpkg::Options::="--force-confold" && pkg install -y -o Dpkg::Options::="--force-confold" git nodejs-lts curl jq
 
 # 验证核心组件是否成功安装
@@ -133,7 +131,8 @@ echo
 echo -e "\n${YELLOW}首次安装完成，正在自动进入管理器，请稍候...${NC}"
 sleep 5
 
-"$HOME/$MANAGER_FILENAME"
+# <--- 终极修复！--->
+# 强制将管理器的输入重定向到当前终端(/dev/tty)，防止因管道符导致的stdin污染
+"$HOME/$MANAGER_FILENAME" < /dev/tty
 
 exit 0
-
