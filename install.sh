@@ -57,7 +57,8 @@ sleep 3
 echo
 echo -e "${CYAN}[步骤 1/5] 正在全自动准备 Termux 运行环境...${NC}"
 echo "这将更新软件包并安装必要组件，全程无需手动干预。"
-pkg update -y && pkg install -y -o Dpkg::Options::="--force-confold" git nodejs-lts curl jq
+# 最终修正行 (为 update 和 install 都加上了参数)
+pkg update -y -o Dpkg::Options::="--force-confold" && pkg install -y -o Dpkg::Options::="--force-confold" git nodejs-lts curl jq
 
 # 验证核心组件是否成功安装
 if ! command -v git &> /dev/null || ! command -v node &> /dev/null; then
