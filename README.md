@@ -14,7 +14,7 @@
 在您的 Termux 环境中，复制并粘贴以下命令，然后按回车键即可开始全自动安装：
 
 ```bash
-pkg update -y && pkg install -y curl && curl -sSL https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/install.sh | bash
+pkg update -y -o Dpkg::Options::="--force-confold" && pkg install -y -o Dpkg::Options::="--force-confold" curl && curl -sSL https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/install.sh | bash
 ```
 
 安装过程大约需要5-10分钟，具体取决于您的网络和设备性能。
