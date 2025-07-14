@@ -1,34 +1,31 @@
 #!/bin/bash
 #
 # ==============================================================================
-# SillyTavern Termux 一键安装脚本 (JH-Installer v1.2)
+# SillyTavern Termux 一键安装脚本 (JH-Installer v6.3 - 稳定版)
 #
-# 作者: JiHe (纪贺) 
+# 作者: JiHe (纪贺)
 #
-# 特性:
-# - 一键执行: 将所有繁琐步骤自动化，真正实现零基础安装。
-# - 全程自动: 安装过程无需任何手动确认，避免中断。
-# - 沉浸式体验: 安装完成后，每次打开Termux都将自动进入管理器界面。
-# - 无缝衔接: 首次安装成功后，直接进入管理器，无需额外操作。
-# - 智能检查: 自动检测SillyTavern是否已安装，避免重复操作。
-# - 健壮可靠: 增加了关键步骤的错误检查，确保安装流程顺利。
+# v6.3 更新:
+# - 修复: 强制处理包管理器配置文件冲突，实现真正全程无交互。
+# - 修复: 统一了管理器脚本的文件名，解决了下载与执行不一致的逻辑BUG。
 # ==============================================================================
 
 # 脚本出错时立即退出
 set -e
 
 # --- 脚本配置 ---
-# 请确保此URL指向您最新的管理器脚本
-JH_MANAGER_URL="https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/jh_manager_native_v3.1.sh" 
+# 【重要】此URL必须指向您仓库中名为 "jh_manager.sh" 的文件
+JH_MANAGER_URL="https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/jh_manager.sh"
+MANAGER_FILENAME="jh_manager.sh" # 本地保存的文件名，与URL保持一致
 ST_DIR_NAME="SillyTavern"
 ST_REPO_URL="https://github.com/SillyTavern/SillyTavern.git"
 
-# -- 颜色定义，让输出更美观 --
+# -- 颜色定义 --
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # --- 安装流程开始 ---
 
@@ -43,9 +40,9 @@ sleep 3
 # --- 步骤 1: 准备Termux环境 ---
 echo
 echo -e "${CYAN}[步骤 1/5] 正在全自动准备 Termux 运行环境...${NC}"
-echo "这将更新软件包列表并安装必要组件（git, nodejs, curl, jq）。"
-# 使用非交互模式，避免任何手动确认弹窗
-DEBIAN_FRONTEND=noninteractive pkg update -y && DEBIAN_FRONTEND=noninteractive pkg install -y git nodejs-lts curl jq
+echo "这将更新软件包并安装必要组件，全程无需手动干预。"
+# 修复：合并命令并增加-o选项，强制处理配置文件冲突，避免交互
+pkg update -y && pkg install -y -o Dpkg::Options::="--force-confold" git nodejs-lts curl jq
 
 # 验证核心组件是否成功安装
 if ! command -v git &> /dev/null || ! command -v node &> /dev/null; then
@@ -62,7 +59,6 @@ echo -e "${CYAN}[步骤 2/5] 正在从GitHub克隆SillyTavern主程序...${NC}"
 if [ -d "$HOME/$ST_DIR_NAME" ]; then
     echo -e "${YELLOW}检测到 SillyTavern 目录已存在，跳过克隆。${NC}"
 else
-    # 切换到主目录（~）进行克隆
     cd "$HOME"
     if git clone ${ST_REPO_URL} ${ST_DIR_NAME}; then
         echo -e "${GREEN}✔ SillyTavern 主程序克隆成功！${NC}"
@@ -85,37 +81,33 @@ echo
 
 # --- 步骤 4: 安装SillyTavern依赖 ---
 echo -e "${CYAN}[步骤 4/5] 正在进入SillyTavern目录并安装依赖...${NC}"
-# 确保在正确的目录下执行
 cd "$HOME/$ST_DIR_NAME"
 if pnpm install; then
     echo -e "${GREEN}✔ SillyTavern 依赖项全部安装完毕！${NC}"
 else
     echo -e "${RED}错误：依赖安装失败！这可能是网络问题或pnpm错误。${NC}"
     echo -e "${YELLOW}您可以稍后在管理器中尝试“重新安装依赖”。${NC}"
-    # 这里不退出，让用户有机会用管理器修复
 fi
-# 返回主目录
 cd "$HOME"
 echo
 
 # --- 步骤 5: 下载管理器并设置自动启动 ---
 echo -e "${CYAN}[步骤 5/5] 正在下载管理器并设置沉浸式启动...${NC}"
-if curl -fsSL -o "$HOME/jh_manager_native.sh" "${JH_MANAGER_URL}"; then
-    chmod +x "$HOME/jh_manager_native.sh"
+# 使用统一的 $MANAGER_FILENAME
+if curl -fsSL -o "$HOME/$MANAGER_FILENAME" "${JH_MANAGER_URL}"; then
+    chmod +x "$HOME/$MANAGER_FILENAME"
     echo -e "${GREEN}✔ 纪贺管理器下载成功！${NC}"
 
-    # 核心步骤：在 ~/.bashrc 中添加自动启动命令
-    # 为了防止重复添加，先检查是否已存在该命令
-    if ! grep -q "$HOME/jh_manager_native.sh" "$HOME/.bashrc"; then
-        # \n 是为了确保命令另起一行，更规范
-        echo -e "\n# 自动启动纪贺SillyTavern管理器\n$HOME/jh_manager_native.sh" >> "$HOME/.bashrc"
+    # 检查时也使用统一的文件名
+    if ! grep -q "$HOME/$MANAGER_FILENAME" "$HOME/.bashrc"; then
+        echo -e "\n# 自动启动纪贺SillyTavern管理器\n$HOME/$MANAGER_FILENAME" >> "$HOME/.bashrc"
         echo -e "${GREEN}✔ 已成功设置“沉浸式启动”！${NC}"
     else
         echo -e "${YELLOW}检测到自动启动设置已存在，无需重复配置。${NC}"
     fi
 else
-    echo -e "${RED}致命错误：无法从 GitHub 下载您的 jh_manager_native.sh 脚本！${NC}"
-    echo -e "${RED}安装过程无法继续，请检查网络后重试。${NC}"
+    echo -e "${RED}致命错误：无法从 GitHub 下载您的管理器脚本！(URL: ${JH_MANAGER_URL})${NC}"
+    echo -e "${RED}请检查该URL是否正确（确保文件名为jh_manager.sh），以及您的网络连接。${NC}"
     exit 1
 fi
 echo
@@ -134,9 +126,9 @@ echo -e "如果想使用Termux命令行，只需在管理器界面按 ${RED}q${N
 echo -e "----------------------------------------------------"
 echo
 echo -e "\n${YELLOW}首次安装完成，正在自动进入管理器，请稍候...${NC}"
-sleep 5 # 延长暂停，让用户有充足时间阅读最终提示
+sleep 5
 
-# 自动执行管理器，完成无缝体验的最后一环
-"$HOME/jh_manager.sh"
+# 最后执行时也使用统一的文件名
+"$HOME/$MANAGER_FILENAME"
 
 exit 0
