@@ -100,21 +100,21 @@ echo
 
 # --- 步骤 5: 下载管理器并设置自动启动 ---
 echo -e "${CYAN}[步骤 5/5] 正在下载管理器并设置沉浸式启动...${NC}"
-if curl -fsSL -o "$HOME/jh_manager.sh" "${JH_MANAGER_URL}"; then
-    chmod +x "$HOME/jh_manager.sh"
+if curl -fsSL -o "$HOME/jh_manager_native.sh" "${JH_MANAGER_URL}"; then
+    chmod +x "$HOME/jh_manager_native.sh"
     echo -e "${GREEN}✔ 纪贺管理器下载成功！${NC}"
 
     # 核心步骤：在 ~/.bashrc 中添加自动启动命令
     # 为了防止重复添加，先检查是否已存在该命令
-    if ! grep -q "$HOME/jh_manager.sh" "$HOME/.bashrc"; then
+    if ! grep -q "$HOME/jh_manager_native.sh" "$HOME/.bashrc"; then
         # \n 是为了确保命令另起一行，更规范
-        echo -e "\n# 自动启动纪贺SillyTavern管理器\n$HOME/jh_manager.sh" >> "$HOME/.bashrc"
+        echo -e "\n# 自动启动纪贺SillyTavern管理器\n$HOME/jh_manager_native.sh" >> "$HOME/.bashrc"
         echo -e "${GREEN}✔ 已成功设置“沉浸式启动”！${NC}"
     else
         echo -e "${YELLOW}检测到自动启动设置已存在，无需重复配置。${NC}"
     fi
 else
-    echo -e "${RED}致命错误：无法从 GitHub 下载您的 jh_manager.sh 脚本！${NC}"
+    echo -e "${RED}致命错误：无法从 GitHub 下载您的 jh_manager_native.sh 脚本！${NC}"
     echo -e "${RED}安装过程无法继续，请检查网络后重试。${NC}"
     exit 1
 fi
