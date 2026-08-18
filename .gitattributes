@@ -1,0 +1,4 @@
+* text=auto
+*.sh text eol=lf
+VERSION text eol=lf
+README.md text eol=lf
