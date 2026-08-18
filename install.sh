@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 一键安装脚本 (JH-Installer)
-#  版本: v1.0.2
+#  版本: v1.0.3
 #  作者: 纪贺 (ignite661)
 #  说明: 在 Termux 原生环境一键部署 SillyTavern（酒馆）
 #
@@ -18,7 +18,7 @@ IFS=$'\n\t'
 # -----------------------------------------------------------------------------
 # 版本与配置
 # -----------------------------------------------------------------------------
-JH_VERSION="v1.0.2"
+JH_VERSION="v1.0.3"
 MANAGER_FILENAME="jh_manager.sh"
 UPDATE_FILENAME="update.sh"
 ST_DIR_NAME="SillyTavern"
@@ -78,9 +78,27 @@ check_termux() {
 install_deps() {
     info "📦 正在更新软件源与系统包，请稍等..."
     echo
-    DEBIAN_FRONTEND=noninteractive pkg update -y -o Dpkg::Options::="--force-confold"
-    DEBIAN_FRONTEND=noninteractive pkg upgrade -y -o Dpkg::Options::="--force-confold"
-    DEBIAN_FRONTEND=noninteractive pkg install -y -o Dpkg::Options::="--force-confold" git nodejs curl jq
+    # --force-confdef + --force-confold: 遇到配置文件冲突时自动选默认/保留现有，
+    # 避免 Termux 升级时卡在 openssl.cnf 这类交互提示上
+    DEBIAN_FRONTEND=noninteractive pkg update -y \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold"
+    DEBIAN_FRONTEND=noninteractive pkg upgrade -y \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold"
+    DEBIAN_FRONTEND=noninteractive pkg install -y \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold" git nodejs curl jq
+
+    # 32 位 Android 上 SillyTavern 依赖 esbuild，需要额外安装，否则 pnpm install 会失败
+    case "$(uname -m)" in
+        armv7l|armv8l|arm)
+            DEBIAN_FRONTEND=noninteractive pkg install -y \
+                -o Dpkg::Options::="--force-confdef" \
+                -o Dpkg::Options::="--force-confold" esbuild
+            ;;
+    esac
+
     echo
     ok "基础依赖安装完成～"
 }
@@ -95,14 +113,16 @@ check_node_version() {
         die "没有检测到 Node.js，安装可能出了问题，请重试。"
     fi
 
+    # 这里做成“软检查”：低于建议版本只警告不退出，避免因为版本号问题卡住安装。
+    # SillyTavern 官方其实支持 Node 18+，如果后面启动失败再升级 Termux 也不迟。
     local lowest
     lowest="$(printf '%s\n' "$node_version" "$MIN_NODE_VERSION" | sort -V | head -n1)"
     if [[ "$lowest" != "$MIN_NODE_VERSION" ]]; then
-        warn "当前 Node.js 版本: $node_version"
-        die "需要 Node.js >= $MIN_NODE_VERSION，请先升级 Termux / 更换软件源后再试。"
+        warn "当前 Node.js 版本: $node_version（建议 >= $MIN_NODE_VERSION）"
+        warn "先继续安装；如果之后酒馆启动失败，请先升级 Termux 再重试。"
+    else
+        ok "Node.js 版本符合要求：$node_version"
     fi
-
-    ok "Node.js 版本符合要求：$node_version"
 }
 
 # -----------------------------------------------------------------------------
@@ -111,15 +131,20 @@ check_node_version() {
 install_sillytavern() {
     if [[ -d "$HOME/$ST_DIR_NAME/.git" ]]; then
         warn "检测到已有酒馆目录，正在帮你拉取最新代码..."
-        if ! (cd "$HOME/$ST_DIR_NAME" && git pull --ff-only); then
-            die "酒馆代码更新失败，请检查网络后重试。"
+        # --rebase --autostash: 即使有本地小改动也能自动暂存后更新，减少更新失败
+        if ! (cd "$HOME/$ST_DIR_NAME" && git pull --rebase --autostash); then
+            die "酒馆代码更新失败，请检查网络或本地冲突后重试。"
         fi
     elif [[ -d "$HOME/$ST_DIR_NAME" ]]; then
         die "发现 $HOME/$ST_DIR_NAME 已存在，但它不是酒馆仓库。请先备份重要数据并删除该目录后再安装。"
     else
         info "正在从 GitHub 克隆 SillyTavern（${ST_BRANCH} 分支）..."
         if ! git clone --depth 1 --branch "$ST_BRANCH" "$ST_REPO_URL" "$HOME/$ST_DIR_NAME"; then
-            die "克隆 SillyTavern 失败，请检查网络/代理后重试。"
+            warn "克隆失败，可能是网络波动，自动重试一次..."
+            rm -rf "$HOME/$ST_DIR_NAME"
+            if ! git clone --depth 1 --branch "$ST_BRANCH" "$ST_REPO_URL" "$HOME/$ST_DIR_NAME"; then
+                die "克隆 SillyTavern 失败，请检查网络/代理后重试。"
+            fi
         fi
     fi
     ok "酒馆主程序准备完毕～"
@@ -128,7 +153,42 @@ install_sillytavern() {
 # -----------------------------------------------------------------------------
 # 安装 pnpm
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 允许 pnpm 运行依赖构建脚本（解决 ERR_PNPM_IGNORED_BUILDS）
+# -----------------------------------------------------------------------------
+ensure_pnpm_builds_allowed() {
+    local npmrc="$HOME/.npmrc"
+    if [[ -f "$npmrc" ]]; then
+        sed -i '/^dangerouslyAllowAllBuilds=/d' "$npmrc"
+    fi
+    echo "dangerouslyAllowAllBuilds=true" >> "$npmrc"
+}
+
 install_pnpm() {
+    local manager="" ver="" current=""
+
+    # 优先按酒馆项目声明的 packageManager 安装对应 pnpm 版本，
+    # 避免 pnpm 版本与 SillyTavern 要求不匹配导致 install 直接失败
+    if [[ -f "$HOME/$ST_DIR_NAME/package.json" ]]; then
+        manager="$(jq -r '.packageManager // empty' "$HOME/$ST_DIR_NAME/package.json" 2>/dev/null || true)"
+    fi
+
+    if [[ -n "$manager" && "${manager%%@*}" == "pnpm" ]]; then
+        ver="${manager#*@}"
+        ver="${ver%%+*}"
+        current="$(pnpm -v 2>/dev/null || true)"
+        if [[ -n "$current" && "$current" == "$ver" ]]; then
+            ok "pnpm 版本匹配：$current"
+            return
+        fi
+        info "正在安装酒馆要求的 pnpm@$ver ..."
+        if ! npm install -g "pnpm@$ver" < /dev/null; then
+            die "pnpm 安装失败，请检查网络后重试。"
+        fi
+        ok "pnpm 安装完成：$(pnpm -v 2>/dev/null || echo '未知版本')"
+        return
+    fi
+
     if command -v pnpm &>/dev/null; then
         ok "pnpm 已存在：$(pnpm -v 2>/dev/null || echo '未知版本')"
     else
@@ -145,8 +205,12 @@ install_pnpm() {
 # -----------------------------------------------------------------------------
 install_st_deps() {
     info "正在安装酒馆依赖，这可能需要几分钟，请耐心等待..."
+    ensure_pnpm_builds_allowed
     if ! (cd "$HOME/$ST_DIR_NAME" && pnpm install < /dev/null); then
-        die "酒馆依赖安装失败，请检查网络后重试。"
+        warn "第一次安装失败，可能是网络波动，自动重试一次..."
+        if ! (cd "$HOME/$ST_DIR_NAME" && pnpm install < /dev/null); then
+            die "酒馆依赖安装失败，请检查网络后重试。"
+        fi
     fi
     ok "酒馆依赖全部安装完毕～"
 }
@@ -154,11 +218,44 @@ install_st_deps() {
 # -----------------------------------------------------------------------------
 # 下载管理器与更新工具
 # -----------------------------------------------------------------------------
+download_with_retry() {
+    local url="$1" out="$2"
+    local attempt
+    for attempt in 1 2 3; do
+        if curl -fsSL --connect-timeout 20 --retry 2 -o "$out" "$url"; then
+            return 0
+        fi
+        warn "下载失败（第 ${attempt} 次），自动重试..."
+        sleep 2
+    done
+    return 1
+}
+
 download_scripts() {
     info "正在下载管理器和更新工具..."
-    curl -fsSL -o "$HOME/$MANAGER_FILENAME.tmp" "$JH_MANAGER_URL"
-    curl -fsSL -o "$HOME/$UPDATE_FILENAME.tmp" "$JH_UPDATE_URL"
-    curl -fsSL -o "$HOME/.jh_version" "$JH_VERSION_URL"
+    if ! download_with_retry "$JH_MANAGER_URL" "$HOME/$MANAGER_FILENAME.tmp"; then
+        die "下载管理器失败，请检查网络后重试。"
+    fi
+    if ! download_with_retry "$JH_UPDATE_URL" "$HOME/$UPDATE_FILENAME.tmp"; then
+        die "下载更新工具失败，请检查网络后重试。"
+    fi
+    if ! download_with_retry "$JH_VERSION_URL" "$HOME/.jh_version"; then
+        die "下载版本信息失败，请检查网络后重试。"
+    fi
+
+    # 下载后先做语法/非空校验，避免坏文件覆盖好文件
+    if ! bash -n "$HOME/$MANAGER_FILENAME.tmp"; then
+        rm -f "$HOME/$MANAGER_FILENAME.tmp" "$HOME/$UPDATE_FILENAME.tmp" "$HOME/.jh_version"
+        die "下载的管理器脚本不完整，请重新运行安装。"
+    fi
+    if ! bash -n "$HOME/$UPDATE_FILENAME.tmp"; then
+        rm -f "$HOME/$MANAGER_FILENAME.tmp" "$HOME/$UPDATE_FILENAME.tmp" "$HOME/.jh_version"
+        die "下载的更新工具不完整，请重新运行安装。"
+    fi
+    if [[ ! -s "$HOME/.jh_version" ]]; then
+        rm -f "$HOME/$MANAGER_FILENAME.tmp" "$HOME/$UPDATE_FILENAME.tmp" "$HOME/.jh_version"
+        die "下载的版本信息为空，请重新运行安装。"
+    fi
 
     mv -f "$HOME/$MANAGER_FILENAME.tmp" "$HOME/$MANAGER_FILENAME"
     mv -f "$HOME/$UPDATE_FILENAME.tmp" "$HOME/$UPDATE_FILENAME"
@@ -207,10 +304,13 @@ finish() {
     sleep 2
 
     if [[ -t 0 ]]; then
-        bash "$HOME/$MANAGER_FILENAME"
-    else
+        bash "$HOME/$MANAGER_FILENAME" || true
+    elif [[ -e /dev/tty ]]; then
         # 通过 curl | bash 安装时，stdin 是管道，这里强制接回当前终端
-        bash "$HOME/$MANAGER_FILENAME" < /dev/tty
+        bash "$HOME/$MANAGER_FILENAME" < /dev/tty || true
+    else
+        warn "安装已完成，但当前环境没有交互终端，无法自动打开管理系统。"
+        warn "请手动运行：bash ~/jh_manager.sh"
     fi
 }
 

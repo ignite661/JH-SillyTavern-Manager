@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 管理系统 (JH-Manager)
-#  版本: v1.0.2
+#  版本: v1.0.3
 #  作者: 纪贺 (ignite661)
 #  说明: 轻量、好用的酒馆管理界面
 #
@@ -88,6 +88,48 @@ is_st_running() {
 }
 
 # -----------------------------------------------------------------------------
+# 允许 pnpm 运行依赖构建脚本（解决 ERR_PNPM_IGNORED_BUILDS）
+# -----------------------------------------------------------------------------
+ensure_pnpm_builds_allowed() {
+    local npmrc="$HOME/.npmrc"
+    if [[ -f "$npmrc" ]]; then
+        sed -i '/^dangerouslyAllowAllBuilds=/d' "$npmrc"
+    fi
+    echo "dangerouslyAllowAllBuilds=true" >> "$npmrc"
+}
+
+# -----------------------------------------------------------------------------
+# 确保 pnpm 版本与酒馆项目要求一致（仅在更新/重装时联网调用）
+# -----------------------------------------------------------------------------
+ensure_pnpm() {
+    ensure_pnpm_builds_allowed
+
+    if [[ ! -f "$ST_DIR/package.json" ]]; then
+        return 0
+    fi
+
+    local manager="" ver="" current=""
+    manager="$(jq -r '.packageManager // empty' "$ST_DIR/package.json" 2>/dev/null || true)"
+    if [[ -z "$manager" || "${manager%%@*}" != "pnpm" ]]; then
+        return 0
+    fi
+
+    ver="${manager#*@}"
+    ver="${ver%%+*}"
+    current="$(pnpm -v 2>/dev/null || true)"
+    if [[ -n "$current" && "$current" == "$ver" ]]; then
+        return 0
+    fi
+
+    info "检测到酒馆需要 pnpm@$ver，正在自动切换..."
+    if ! npm install -g "pnpm@$ver" < /dev/null; then
+        err "自动切换 pnpm 版本失败，请检查网络。"
+        return 1
+    fi
+    ok "pnpm 已切换为 $ver"
+}
+
+# -----------------------------------------------------------------------------
 # 1. 打开酒馆
 # -----------------------------------------------------------------------------
 start_st() {
@@ -109,7 +151,8 @@ start_st() {
     echo -e "  手机浏览器访问：${C_GREEN}http://127.0.0.1:8000${C_RESET}"
     echo
     cd "$ST_DIR"
-    NODE_OPTIONS="--max-old-space-size=4096" pnpm start
+    # 用 || true 避免酒馆启动失败/被 Ctrl+C 时整个管理器跟着退出
+    NODE_OPTIONS="--max-old-space-size=4096" pnpm start || true
     echo
     warn "酒馆已关闭。"
     pause
@@ -126,20 +169,43 @@ update_st() {
         return
     fi
 
+    if is_st_running; then
+        warn "酒馆正在运行，请先关闭酒馆再更新。"
+        pause
+        return
+    fi
+
     echo -e "${C_YELLOW}🔄 正在帮你拉取最新版酒馆，稍等片刻...${C_RESET}"
     echo
-    if ! (cd "$ST_DIR" && git pull --ff-only); then
-        err "酒馆更新失败，检查一下网络/代理再试试？"
+
+    # 更新前先确保 pnpm 版本匹配（联网操作）
+    if ! ensure_pnpm; then
+        pause
+        return
+    fi
+
+    # --rebase --autostash: 有本地小改动也能自动暂存后更新，减少更新失败
+    if ! (cd "$ST_DIR" && git pull --rebase --autostash); then
+        err "酒馆更新失败，检查网络或本地冲突后再试试？"
         pause
         return
     fi
 
     echo
     info "代码更新完成，正在同步依赖..."
-    if ! (cd "$ST_DIR" && pnpm install < /dev/null); then
-        err "依赖同步失败，可以稍后选“重新安装依赖”。"
+    # 更新后 package.json 可能变化，再确保一次 pnpm 版本
+    if ! ensure_pnpm; then
         pause
         return
+    fi
+
+    if ! (cd "$ST_DIR" && pnpm install < /dev/null); then
+        warn "依赖同步失败，自动重试一次..."
+        if ! (cd "$ST_DIR" && pnpm install < /dev/null); then
+            err "依赖同步失败，可以稍后选“重新安装依赖”。"
+            pause
+            return
+        fi
     fi
 
     ok "酒馆已经更新到最新版～"
@@ -157,8 +223,15 @@ reinstall_deps() {
         return
     fi
 
+    if is_st_running; then
+        warn "酒馆正在运行，请先关闭酒馆再重装依赖。"
+        pause
+        return
+    fi
+
     warn "这一步会删除 node_modules 并重新安装，可能需要几分钟。"
     read -rp "确定继续吗？(y/n): " confirm
+    confirm="${confirm//[[:space:]]/}"
     if [[ ! "$confirm" =~ ^[yY]$ ]]; then
         echo "好，已取消。"
         pause
@@ -166,13 +239,21 @@ reinstall_deps() {
     fi
 
     echo
+    if ! ensure_pnpm; then
+        pause
+        return
+    fi
+
     echo "正在删除旧依赖..."
     rm -rf "$ST_DIR/node_modules"
     echo "正在安装新依赖..."
     if ! (cd "$ST_DIR" && pnpm install < /dev/null); then
-        err "依赖安装失败，请检查网络后重试。"
-        pause
-        return
+        warn "依赖安装失败，自动重试一次..."
+        if ! (cd "$ST_DIR" && pnpm install < /dev/null); then
+            err "依赖安装失败，请检查网络后重试。"
+            pause
+            return
+        fi
     fi
 
     ok "依赖重装完成～"
@@ -188,6 +269,17 @@ backup_data() {
         warn "还没找到酒馆目录，无法备份。"
         pause
         return
+    fi
+
+    if is_st_running; then
+        warn "酒馆正在运行，建议先关闭再备份（数据更完整）。"
+        read -rp "仍然继续备份吗？(y/n): " confirm
+        confirm="${confirm//[[:space:]]/}"
+        if [[ ! "$confirm" =~ ^[yY]$ ]]; then
+            echo "好，已取消。"
+            pause
+            return
+        fi
     fi
 
     mkdir -p "$BACKUP_DIR"
@@ -264,6 +356,7 @@ restore_data() {
     echo "  0. 取消"
     echo
     read -rp "请输入备份编号: " choice
+    choice="${choice//[[:space:]]/}"
 
     if [[ ! "$choice" =~ ^[0-9]+$ ]] || [[ "$choice" -lt 1 || "$choice" -gt "${#backups[@]}" ]]; then
         echo "好，已取消。"
@@ -275,8 +368,16 @@ restore_data() {
     echo
     warn "恢复会覆盖当前酒馆数据：$(basename "$target")"
     read -rp "确定恢复吗？(y/n): " confirm
+    confirm="${confirm//[[:space:]]/}"
     if [[ ! "$confirm" =~ ^[yY]$ ]]; then
         echo "好，已取消。"
+        pause
+        return
+    fi
+
+    echo "正在校验备份文件..."
+    if ! tar -tzf "$target" >/dev/null 2>&1; then
+        err "备份文件校验失败，可能已损坏。"
         pause
         return
     fi
@@ -298,17 +399,27 @@ restore_data() {
 update_scripts() {
     clear
     if [[ -x "$UPDATE_SCRIPT" ]]; then
-        bash "$UPDATE_SCRIPT"
+        if ! bash "$UPDATE_SCRIPT"; then
+            err "脚本更新过程出错，请稍后重试。"
+            pause
+            return
+        fi
     else
         warn "没有找到 update.sh，尝试直接下载..."
         local raw_url="https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/update.sh"
         if curl -fsSL -o "$UPDATE_SCRIPT.tmp" "$raw_url"; then
             mv -f "$UPDATE_SCRIPT.tmp" "$UPDATE_SCRIPT"
             chmod +x "$UPDATE_SCRIPT"
-            bash "$UPDATE_SCRIPT"
+            if ! bash "$UPDATE_SCRIPT"; then
+                err "脚本更新过程出错，请稍后重试。"
+                pause
+                return
+            fi
         else
             err "下载更新工具失败，请检查网络。"
             rm -f "$UPDATE_SCRIPT.tmp"
+            pause
+            return
         fi
     fi
     echo
@@ -338,6 +449,7 @@ main_menu() {
 
         local choice
         read -rp "请选择 [1-6, q]: " choice
+        choice="${choice//[[:space:]]/}"
 
         case "$choice" in
             1) start_st ;;

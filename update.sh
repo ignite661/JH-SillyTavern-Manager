@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 脚本更新工具 (JH-Updater)
-#  版本: v1.0.2
+#  版本: v1.0.3
 #  作者: 纪贺 (ignite661)
 #  说明: 从 GitHub 拉取最新版 install.sh / jh_manager.sh / update.sh
 #
@@ -81,8 +81,14 @@ main() {
         exit 1
     fi
 
+    if [[ "$local_version" == "$remote_version" ]]; then
+        ok "当前已经是最新版本（$remote_version），无需更新。"
+        exit 0
+    fi
+
     echo
     read -rp "是否更新脚本？(y/n): " confirm
+    confirm="${confirm//[[:space:]]/}"
     if [[ ! "$confirm" =~ ^[yY]$ ]]; then
         echo "好，已取消。"
         exit 0
@@ -91,17 +97,40 @@ main() {
     echo
     info "正在下载最新脚本..."
 
-    local f
+    local f attempt
     for f in "${SCRIPT_FILES[@]}"; do
-        if ! curl -fsSL -o "$SCRIPT_DIR/$f.tmp" "$RAW_BASE/$f"; then
-            rm -f "$SCRIPT_DIR/$f.tmp"
-            die "下载 $f 失败，已保留原文件。"
+        for attempt in 1 2 3; do
+            if curl -fsSL --connect-timeout 20 --retry 2 -o "$SCRIPT_DIR/$f.tmp" "$RAW_BASE/$f"; then
+                break
+            fi
+            warn "下载 $f 失败（第 ${attempt} 次），自动重试..."
+            sleep 2
+            if [[ "$attempt" -eq 3 ]]; then
+                rm -f "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/update.sh.tmp" "$VERSION_FILE.tmp"
+                die "下载 $f 失败，已保留原文件。"
+            fi
+        done
+        # 下载后先做语法校验，避免坏文件覆盖好文件
+        if ! bash -n "$SCRIPT_DIR/$f.tmp"; then
+            rm -f "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/update.sh.tmp" "$VERSION_FILE.tmp"
+            die "下载的 $f 不完整，已保留原文件。"
         fi
     done
 
-    if ! curl -fsSL -o "$VERSION_FILE.tmp" "$RAW_BASE/VERSION"; then
-        rm -f "$VERSION_FILE.tmp"
-        die "下载 VERSION 失败，已保留原文件。"
+    for attempt in 1 2 3; do
+        if curl -fsSL --connect-timeout 20 --retry 2 -o "$VERSION_FILE.tmp" "$RAW_BASE/VERSION"; then
+            break
+        fi
+        warn "下载 VERSION 失败（第 ${attempt} 次），自动重试..."
+        sleep 2
+        if [[ "$attempt" -eq 3 ]]; then
+            rm -f "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/update.sh.tmp" "$VERSION_FILE.tmp"
+            die "下载 VERSION 失败，已保留原文件。"
+        fi
+    done
+    if [[ ! -s "$VERSION_FILE.tmp" ]]; then
+        rm -f "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/update.sh.tmp" "$VERSION_FILE.tmp"
+        die "下载的 VERSION 为空，已保留原文件。"
     fi
 
     # 备份旧文件
