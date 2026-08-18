@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 脚本更新工具 (JH-Updater)
-#  版本: v1.0.6
+#  版本: v1.0.7
 #  作者: 纪贺 (ignite661)
 #  说明: 从 GitHub 拉取最新版 install.sh / jh_manager.sh / update.sh
 #
@@ -69,14 +69,19 @@ main() {
 
     info "正在从 GitHub 获取最新版本信息..."
     # 加时间戳参数绕过 raw 的 CDN 缓存，避免拿到旧版 VERSION
-    local remote_version
-    remote_version="$(curl -fsSL --connect-timeout 15 -H 'Cache-Control: no-cache' "$RAW_BASE/VERSION?t=$(date +%s)" 2>/dev/null | head -n1 || true)"
+    local remote_info remote_version
+    remote_info="$(curl -fsSL --connect-timeout 15 -H 'Cache-Control: no-cache' "$RAW_BASE/VERSION?t=$(date +%s)" 2>/dev/null || true)"
+    remote_version="$(printf '%s\n' "$remote_info" | head -n1 || true)"
     local local_version
     local_version="$(get_local_version)"
 
     echo -e "  本地版本：${C_GREEN}$local_version${C_RESET}"
     if [[ -n "$remote_version" ]]; then
         echo -e "  远程版本：${C_YELLOW}$remote_version${C_RESET}"
+        echo
+        echo -e "${C_CYAN}📢 更新内容：${C_RESET}"
+        printf '%s\n' "$remote_info" | tail -n +2 | sed '/^\s*$/d'
+        echo
     else
         warn "远程版本获取失败，请检查网络/代理后再试。"
         exit 1

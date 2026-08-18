@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 管理系统 (JH-Manager)
-#  版本: v1.0.6
+#  版本: v1.0.7
 #  作者: 纪贺 (ignite661)
 #  说明: 轻量、好用的酒馆管理界面
 #
@@ -430,6 +430,26 @@ update_scripts() {
 }
 
 # -----------------------------------------------------------------------------
+# 7. 查看更新公告
+# -----------------------------------------------------------------------------
+show_news() {
+    clear
+    info "正在获取最新公告..."
+    local news
+    news="$(curl -fsSL --connect-timeout 15 -H 'Cache-Control: no-cache' "https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/VERSION?t=$(date +%s)" 2>/dev/null || true)"
+    if [[ -z "$news" ]]; then
+        err "获取公告失败，请检查网络/代理后再试。"
+    else
+        echo
+        echo -e "${C_CYAN}📢 纪贺 SillyTavern 项目公告${C_RESET}"
+        echo -e "${C_CYAN}----------------------------------------------${C_RESET}"
+        printf '%s\n' "$news"
+        echo -e "${C_CYAN}----------------------------------------------${C_RESET}"
+    fi
+    pause
+}
+
+# -----------------------------------------------------------------------------
 # 主菜单
 # -----------------------------------------------------------------------------
 main_menu() {
@@ -445,12 +465,13 @@ main_menu() {
         echo -e " ${C_GREEN}4.${C_RESET} 备份数据"
         echo -e " ${C_BLUE}5.${C_RESET} 恢复数据"
         echo -e " ${C_YELLOW}6.${C_RESET} 检查脚本更新"
+        echo -e " ${C_GREEN}7.${C_RESET} 查看更新公告"
         echo -e " ${C_RED}q.${C_RESET} 退出管理系统"
         echo
         echo -e "${C_CYAN}----------------------------------------------${C_RESET}"
 
         local choice
-        read -rp "请选择 [1-6, q]: " choice
+        read -rp "请选择 [1-7, q]: " choice
         choice="${choice//[[:space:]]/}"
 
         case "$choice" in
@@ -460,6 +481,7 @@ main_menu() {
             4) backup_data ;;
             5) restore_data ;;
             6) update_scripts ;;
+            7) show_news ;;
             q|Q)
                 echo
                 echo -e "${C_YELLOW}下次见，酒馆等你回来～${C_RESET}"
