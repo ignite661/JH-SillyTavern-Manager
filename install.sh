@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 一键安装脚本 (JH-Installer)
-#  版本: v1.0.1
+#  版本: v1.0.2
 #  作者: 纪贺 (ignite661)
 #  说明: 在 Termux 原生环境一键部署 SillyTavern（酒馆）
 #
@@ -18,7 +18,7 @@ IFS=$'\n\t'
 # -----------------------------------------------------------------------------
 # 版本与配置
 # -----------------------------------------------------------------------------
-JH_VERSION="v1.0.1"
+JH_VERSION="v1.0.2"
 MANAGER_FILENAME="jh_manager.sh"
 UPDATE_FILENAME="update.sh"
 ST_DIR_NAME="SillyTavern"
@@ -78,9 +78,9 @@ check_termux() {
 install_deps() {
     info "📦 正在更新软件源与系统包，请稍等..."
     echo
-    pkg update -y
-    pkg upgrade -y
-    pkg install -y git nodejs curl jq
+    DEBIAN_FRONTEND=noninteractive pkg update -y -o Dpkg::Options::="--force-confold"
+    DEBIAN_FRONTEND=noninteractive pkg upgrade -y -o Dpkg::Options::="--force-confold"
+    DEBIAN_FRONTEND=noninteractive pkg install -y -o Dpkg::Options::="--force-confold" git nodejs curl jq
     echo
     ok "基础依赖安装完成～"
 }

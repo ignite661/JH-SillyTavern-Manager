@@ -1,5 +1,6 @@
-v1.0.1
+v1.0.2
 更新日志：
+- 修复：pkg 命令增加 --force-confold，避免 openssl.cnf 等配置冲突导致升级中断
 - 修复：安装前先执行 pkg upgrade，避免 curl/openssl 版本不同步导致链接错误
 - 全新轻量化重构，原生 Termux 直跑
 - 启动零网络请求，秒开不卡顿
