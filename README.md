@@ -8,6 +8,7 @@
 *   **沉浸式管理**: 安装完成后，每次打开 Termux 应用都会自动进入专属管理系统，操作直观方便。
 *   **轻量快速**: 原生 Termux 环境直跑，不依赖 proot 容器；管理系统启动零网络请求，秒开不卡顿。
 *   **数据安全**: 内置备份/恢复功能，角色卡、聊天记录、世界书等重要数据一键打包。
+*   **客户端整包更新**: 更新机制基于 GitHub Release 整包同步，以后新增文件、新功能也能一次更新到位，无需重新部署。
 *   **完全免费与开源**: 本项目完全免费，并以开源精神分享。严禁任何形式的商业倒卖行为。
 
 ## 🚀 快速开始
@@ -17,6 +18,8 @@
 ```bash
 pkg update -y && pkg install -y curl && curl -sSL https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/install.sh | bash
 ```
+
+> 💡 安装脚本会自动执行 `pkg update` / `pkg upgrade` / 依赖安装，并自动处理 Termux 常见兼容问题（如 openssl/curl 冲突、pnpm 构建脚本、Node LTS 等），你不需要手动准备环境。
 
 安装过程大约需要5-10分钟，具体取决于您的网络和设备性能。
 
@@ -36,21 +39,62 @@ pkg update -y && pkg install -y curl && curl -sSL https://raw.githubusercontent.
  3. 重新安装依赖      - 解决更新后依赖异常
  4. 备份数据          - 打包角色卡、聊天记录、世界书等数据
  5. 恢复数据          - 从备份文件恢复酒馆数据
- 6. 检查脚本更新      - 手动更新安装/管理/更新脚本
+ 6. 检查脚本更新      - 整包更新安装/管理/更新脚本
+ 7. 查看更新公告      - 查看项目最新消息与更新内容
  q. 退出管理系统
 ```
 
 > 💡 所有联网操作均为**手动触发**，管理系统启动时不会访问网络，大陆用户也能秒开。
 
-## 🛠️ 手动更新脚本
+## 🔄 更新机制
 
-除了在管理系统中选择“检查脚本更新”，也可以手动执行：
+### 更新脚本（推荐）
+
+在管理系统中选择 **`6. 检查脚本更新`**，或手动执行：
 
 ```bash
 bash ~/update.sh
 ```
 
-更新前会自动备份旧脚本，更新失败不会影响当前使用。
+新版更新机制特点：
+
+* 从 GitHub Release 下载 **整包 `jh-update.zip`**，一次同步所有脚本文件
+* 以后即使新增文件、新模块，老用户也能一次更新到位
+* 下载后自动做语法校验，失败不会覆盖旧文件
+* 更新前自动备份旧脚本，出问题可回退
+* 如果提示“已是最新”，仍可选择强制重新下载
+
+### 更新酒馆
+
+在管理系统中选择 **`2. 检查酒馆更新`**，会自动 `git pull --rebase --autostash` 并同步依赖。
+
+## 🛠️ 常见问题
+
+### 启动酒馆时 webpack 编译报错（`Cannot read properties of undefined (reading '0')`）
+
+如果你遇到酒馆前端编译失败、`lib.js` 找不到，请先确认：
+
+```bash
+node -v
+```
+
+建议使用 Termux 的 **LTS 版本**：
+
+```bash
+pkg install -y nodejs-lts
+```
+
+并清理缓存后重装依赖：
+
+```bash
+cd ~/SillyTavern
+rm -rf data/_webpack node_modules
+echo "dangerouslyAllowAllBuilds: true" >> pnpm-workspace.yaml
+pnpm install --dangerously-allow-all-builds
+pnpm start
+```
+
+> 如果问题仍然存在，请将终端报错发送给作者，后续会通过客户端更新推送修复。
 
 ## ⚠️ 重要声明
 
