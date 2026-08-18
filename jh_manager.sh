@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 管理系统 (JH-Manager)
-#  版本: v1.0.8
+#  版本: v1.0.9
 #  作者: 纪贺 (ignite661)
 #  说明: 轻量、好用的酒馆管理界面
 #
@@ -132,6 +132,21 @@ ensure_pnpm() {
 }
 
 # -----------------------------------------------------------------------------
+# 锁定 webpack 稳定版（规避 5.109 在 Termux/Node24 的编译 bug）
+# -----------------------------------------------------------------------------
+ensure_webpack() {
+    local current
+    current="$(cd "$ST_DIR" && node -e "try{console.log(require('webpack/package.json').version)}catch(e){console.log('')}" 2>/dev/null || true)"
+    if [[ "$current" == "5.98.0" ]]; then
+        return 0
+    fi
+    info "正在锁定 webpack 到稳定版 5.98.0（规避 5.109 在 Termux 的编译 bug）..."
+    if ! (cd "$ST_DIR" && pnpm add webpack@5.98.0 --save-exact < /dev/null); then
+        warn "webpack 锁定失败，如果启动报错请重新安装依赖。"
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # 1. 打开酒馆
 # -----------------------------------------------------------------------------
 start_st() {
@@ -209,6 +224,7 @@ update_st() {
             return
         fi
     fi
+    ensure_webpack
 
     ok "酒馆已经更新到最新版～"
     pause
@@ -257,6 +273,7 @@ reinstall_deps() {
             return
         fi
     fi
+    ensure_webpack
 
     ok "依赖重装完成～"
     pause

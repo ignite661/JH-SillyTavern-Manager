@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 一键安装脚本 (JH-Installer)
-#  版本: v1.0.8
+#  版本: v1.0.9
 #  作者: 纪贺 (ignite661)
 #  说明: 在 Termux 原生环境一键部署 SillyTavern（酒馆）
 #
@@ -18,7 +18,7 @@ IFS=$'\n\t'
 # -----------------------------------------------------------------------------
 # 版本与配置
 # -----------------------------------------------------------------------------
-JH_VERSION="v1.0.8"
+JH_VERSION="v1.0.9"
 MANAGER_FILENAME="jh_manager.sh"
 UPDATE_FILENAME="update.sh"
 ST_DIR_NAME="SillyTavern"
@@ -205,6 +205,22 @@ install_pnpm() {
 }
 
 # -----------------------------------------------------------------------------
+# 锁定 webpack 稳定版（规避 5.109 在 Termux/Node24 的编译 bug）
+# -----------------------------------------------------------------------------
+ensure_webpack() {
+    local st_dir="$HOME/$ST_DIR_NAME"
+    local current
+    current="$(cd "$st_dir" && node -e "try{console.log(require('webpack/package.json').version)}catch(e){console.log('')}" 2>/dev/null || true)"
+    if [[ "$current" == "5.98.0" ]]; then
+        return 0
+    fi
+    info "正在锁定 webpack 到稳定版 5.98.0（规避 5.109 在 Termux 的编译 bug）..."
+    if ! (cd "$st_dir" && pnpm add webpack@5.98.0 --save-exact < /dev/null); then
+        warn "webpack 锁定失败，如果启动报错请重新执行安装。"
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # 安装酒馆依赖
 # -----------------------------------------------------------------------------
 install_st_deps() {
@@ -216,6 +232,7 @@ install_st_deps() {
             die "酒馆依赖安装失败，请检查网络后重试。"
         fi
     fi
+    ensure_webpack
     ok "酒馆依赖全部安装完毕～"
 }
 

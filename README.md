@@ -76,29 +76,20 @@ bash ~/update.sh
 
 ### 启动酒馆时 webpack 编译报错（`Cannot read properties of undefined (reading '0')`）
 
-如果你遇到酒馆前端编译失败、`lib.js` 找不到，请先确认：
+这是 **webpack 5.109.2 在 Termux / Node 24 下的已知兼容问题**。  
+v1.0.9 起，安装/更新/重装依赖后脚本会**自动锁定 webpack 5.98.0**，正常情况下不会再出现。
 
-```bash
-node -v
-```
-
-建议使用 Termux 的 **LTS 版本**：
-
-```bash
-pkg install -y nodejs-lts
-```
-
-并清理缓存后重装依赖：
+如果仍遇到，可手动执行：
 
 ```bash
 cd ~/SillyTavern
+pnpm add webpack@5.98.0 --save-exact
 rm -rf data/_webpack node_modules
-echo "dangerouslyAllowAllBuilds: true" >> pnpm-workspace.yaml
 pnpm install --dangerously-allow-all-builds
 pnpm start
 ```
 
-> 如果问题仍然存在，请将终端报错发送给作者，后续会通过客户端更新推送修复。
+> 如果你的脚本版本低于 v1.0.9，请先在管理系统中选 `6. 检查脚本更新` 升级。
 
 ## ⚠️ 重要声明
 

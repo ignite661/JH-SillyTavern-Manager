@@ -1,6 +1,8 @@
-v1.0.8
+v1.0.9
 更新日志：
-- 新增：更新机制升级为 GitHub Release 整包更新，以后新增文件也能一次同步
+- 修复：自动锁定 webpack 5.98.0，解决 Termux/Node 24 下 webpack 5.109.2 编译报错导致酒馆无法启动
+- 安装/更新/重装依赖后会自动检测并锁定 webpack 稳定版
+- 更新机制升级为 GitHub Release 整包更新，以后新增文件也能一次同步
 - 新增：安装依赖增加 unzip，支持整包更新解压
 - 修复：默认安装 nodejs-lts，避免 nodejs current 版本导致酒馆前端 webpack 编译失败
 - 修复：pnpm 构建许可写入 pnpm-workspace.yaml，并给 pnpm install 增加 --dangerously-allow-all-builds
