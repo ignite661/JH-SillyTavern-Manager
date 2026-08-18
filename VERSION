@@ -1,6 +1,7 @@
-v1.0.3
+v1.0.4
 更新日志：
-- 修复：允许 pnpm 运行依赖构建脚本，解决 ERR_PNPM_IGNORED_BUILDS 导致酒馆启动失败
+- 修复：pnpm 构建许可改为写入 pnpm-workspace.yaml，并给 pnpm install 增加 --dangerously-allow-all-builds，彻底解决 ERR_PNPM_IGNORED_BUILDS
+- 修复：允许 pnpm 运行依赖构建脚本，解决酒馆装完无法启动的问题
 - 加固：Node 版本检查改为软检查，低于建议版本不再阻断安装
 - 加固：自动匹配酒馆项目要求的 pnpm 版本，避免 pnpm 版本不兼容
 - 加固：克隆/下载/依赖安装失败时自动重试，减少网络波动导致的中断

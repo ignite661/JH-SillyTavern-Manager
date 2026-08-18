@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 一键安装脚本 (JH-Installer)
-#  版本: v1.0.3
+#  版本: v1.0.4
 #  作者: 纪贺 (ignite661)
 #  说明: 在 Termux 原生环境一键部署 SillyTavern（酒馆）
 #
@@ -18,7 +18,7 @@ IFS=$'\n\t'
 # -----------------------------------------------------------------------------
 # 版本与配置
 # -----------------------------------------------------------------------------
-JH_VERSION="v1.0.3"
+JH_VERSION="v1.0.4"
 MANAGER_FILENAME="jh_manager.sh"
 UPDATE_FILENAME="update.sh"
 ST_DIR_NAME="SillyTavern"
@@ -157,11 +157,13 @@ install_sillytavern() {
 # 允许 pnpm 运行依赖构建脚本（解决 ERR_PNPM_IGNORED_BUILDS）
 # -----------------------------------------------------------------------------
 ensure_pnpm_builds_allowed() {
-    local npmrc="$HOME/.npmrc"
-    if [[ -f "$npmrc" ]]; then
-        sed -i '/^dangerouslyAllowAllBuilds=/d' "$npmrc"
+    # pnpm 10.9+ 的构建许可必须写在项目 pnpm-workspace.yaml 里，
+    # 写在 ~/.npmrc 不生效（那是导致 ERR_PNPM_IGNORED_BUILDS 的根因）
+    local ws="$HOME/$ST_DIR_NAME/pnpm-workspace.yaml"
+    if [[ -f "$ws" ]]; then
+        sed -i '/^dangerouslyAllowAllBuilds:/d' "$ws"
     fi
-    echo "dangerouslyAllowAllBuilds=true" >> "$npmrc"
+    echo "dangerouslyAllowAllBuilds: true" >> "$ws"
 }
 
 install_pnpm() {
@@ -206,9 +208,9 @@ install_pnpm() {
 install_st_deps() {
     info "正在安装酒馆依赖，这可能需要几分钟，请耐心等待..."
     ensure_pnpm_builds_allowed
-    if ! (cd "$HOME/$ST_DIR_NAME" && pnpm install < /dev/null); then
+    if ! (cd "$HOME/$ST_DIR_NAME" && pnpm install --dangerously-allow-all-builds < /dev/null); then
         warn "第一次安装失败，可能是网络波动，自动重试一次..."
-        if ! (cd "$HOME/$ST_DIR_NAME" && pnpm install < /dev/null); then
+        if ! (cd "$HOME/$ST_DIR_NAME" && pnpm install --dangerously-allow-all-builds < /dev/null); then
             die "酒馆依赖安装失败，请检查网络后重试。"
         fi
     fi

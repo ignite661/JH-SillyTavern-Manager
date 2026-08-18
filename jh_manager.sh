@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 管理系统 (JH-Manager)
-#  版本: v1.0.3
+#  版本: v1.0.4
 #  作者: 纪贺 (ignite661)
 #  说明: 轻量、好用的酒馆管理界面
 #
@@ -91,11 +91,13 @@ is_st_running() {
 # 允许 pnpm 运行依赖构建脚本（解决 ERR_PNPM_IGNORED_BUILDS）
 # -----------------------------------------------------------------------------
 ensure_pnpm_builds_allowed() {
-    local npmrc="$HOME/.npmrc"
-    if [[ -f "$npmrc" ]]; then
-        sed -i '/^dangerouslyAllowAllBuilds=/d' "$npmrc"
+    # pnpm 10.9+ 的构建许可必须写在项目 pnpm-workspace.yaml 里，
+    # 写在 ~/.npmrc 不生效（那是导致 ERR_PNPM_IGNORED_BUILDS 的根因）
+    local ws="$ST_DIR/pnpm-workspace.yaml"
+    if [[ -f "$ws" ]]; then
+        sed -i '/^dangerouslyAllowAllBuilds:/d' "$ws"
     fi
-    echo "dangerouslyAllowAllBuilds=true" >> "$npmrc"
+    echo "dangerouslyAllowAllBuilds: true" >> "$ws"
 }
 
 # -----------------------------------------------------------------------------
@@ -199,9 +201,9 @@ update_st() {
         return
     fi
 
-    if ! (cd "$ST_DIR" && pnpm install < /dev/null); then
+    if ! (cd "$ST_DIR" && pnpm install --dangerously-allow-all-builds < /dev/null); then
         warn "依赖同步失败，自动重试一次..."
-        if ! (cd "$ST_DIR" && pnpm install < /dev/null); then
+        if ! (cd "$ST_DIR" && pnpm install --dangerously-allow-all-builds < /dev/null); then
             err "依赖同步失败，可以稍后选“重新安装依赖”。"
             pause
             return
@@ -247,9 +249,9 @@ reinstall_deps() {
     echo "正在删除旧依赖..."
     rm -rf "$ST_DIR/node_modules"
     echo "正在安装新依赖..."
-    if ! (cd "$ST_DIR" && pnpm install < /dev/null); then
+    if ! (cd "$ST_DIR" && pnpm install --dangerously-allow-all-builds < /dev/null); then
         warn "依赖安装失败，自动重试一次..."
-        if ! (cd "$ST_DIR" && pnpm install < /dev/null); then
+        if ! (cd "$ST_DIR" && pnpm install --dangerously-allow-all-builds < /dev/null); then
             err "依赖安装失败，请检查网络后重试。"
             pause
             return
