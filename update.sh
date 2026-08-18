@@ -2,9 +2,9 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 脚本更新工具 (JH-Updater)
-#  版本: v1.0.7
+#  版本: v1.0.8
 #  作者: 纪贺 (ignite661)
-#  说明: 从 GitHub 拉取最新版 install.sh / jh_manager.sh / update.sh
+#  说明: 通过 GitHub Release 整包更新所有脚本文件
 #
 #  使用:
 #  - 在管理系统中选“检查脚本更新”即可自动调用
@@ -20,12 +20,14 @@ IFS=$'\n\t'
 REPO="ignite661/JH-SillyTavern-Manager"
 BRANCH="main"
 RAW_BASE="https://raw.githubusercontent.com/$REPO/$BRANCH"
+RELEASE_URL="https://github.com/$REPO/releases/latest/download/jh-update.zip"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# 需要更新的脚本文件（相对 SCRIPT_DIR）
-SCRIPT_FILES=("install.sh" "jh_manager.sh" "update.sh")
-# 版本缓存文件（放在 HOME 下，避免污染脚本目录）
 VERSION_FILE="$HOME/.jh_version"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+# 需要更新/校验的脚本文件
+SCRIPT_FILES=("install.sh" "jh_manager.sh" "update.sh")
 
 # -----------------------------------------------------------------------------
 # 颜色与提示
@@ -55,6 +57,21 @@ get_local_version() {
 }
 
 # -----------------------------------------------------------------------------
+# 检查 unzip
+# -----------------------------------------------------------------------------
+check_unzip() {
+    if command -v unzip >/dev/null 2>&1; then
+        return 0
+    fi
+    if [[ "${PREFIX:-}" == *"/com.termux"* ]]; then
+        echo -e "${C_YELLOW}缺少 unzip，正在安装...${C_RESET}"
+        pkg install -y unzip
+    else
+        die "缺少 unzip，请先安装 unzip 后再更新。"
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # 主流程
 # -----------------------------------------------------------------------------
 main() {
@@ -69,10 +86,9 @@ main() {
 
     info "正在从 GitHub 获取最新版本信息..."
     # 加时间戳参数绕过 raw 的 CDN 缓存，避免拿到旧版 VERSION
-    local remote_info remote_version
+    local remote_info remote_version local_version
     remote_info="$(curl -fsSL --connect-timeout 15 -H 'Cache-Control: no-cache' "$RAW_BASE/VERSION?t=$(date +%s)" 2>/dev/null || true)"
     remote_version="$(printf '%s\n' "$remote_info" | head -n1 || true)"
-    local local_version
     local_version="$(get_local_version)"
 
     echo -e "  本地版本：${C_GREEN}$local_version${C_RESET}"
@@ -106,44 +122,33 @@ main() {
         exit 0
     fi
 
+    check_unzip
+
     echo
-    info "正在下载最新脚本..."
+    info "正在下载整包更新..."
+    local zip_file="$TMP_DIR/jh-update.zip"
+    if ! curl -fL --connect-timeout 20 --retry 3 -H 'Cache-Control: no-cache' -o "$zip_file" "$RELEASE_URL?t=$(date +%s)"; then
+        die "下载更新包失败，请检查网络后重试。"
+    fi
 
-    local f attempt
+    local update_dir="$TMP_DIR/update"
+    mkdir -p "$update_dir"
+    if ! unzip -oq "$zip_file" -d "$update_dir"; then
+        die "解压更新包失败，压缩包可能损坏。"
+    fi
+
+    # 校验更新包内容
+    local f
     for f in "${SCRIPT_FILES[@]}"; do
-        for attempt in 1 2 3; do
-            # 同样加时间戳绕过 raw CDN 缓存
-            if curl -fsSL --connect-timeout 20 --retry 2 -H 'Cache-Control: no-cache' -o "$SCRIPT_DIR/$f.tmp" "$RAW_BASE/$f?t=$(date +%s)"; then
-                break
-            fi
-            warn "下载 $f 失败（第 ${attempt} 次），自动重试..."
-            sleep 2
-            if [[ "$attempt" -eq 3 ]]; then
-                rm -f "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/update.sh.tmp" "$VERSION_FILE.tmp"
-                die "下载 $f 失败，已保留原文件。"
-            fi
-        done
-        # 下载后先做语法校验，避免坏文件覆盖好文件
-        if ! bash -n "$SCRIPT_DIR/$f.tmp"; then
-            rm -f "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/update.sh.tmp" "$VERSION_FILE.tmp"
-            die "下载的 $f 不完整，已保留原文件。"
+        if [[ ! -f "$update_dir/$f" ]]; then
+            die "更新包缺少 $f，已取消更新。"
+        fi
+        if ! bash -n "$update_dir/$f"; then
+            die "更新包中的 $f 语法校验失败，已取消更新。"
         fi
     done
-
-    for attempt in 1 2 3; do
-        if curl -fsSL --connect-timeout 20 --retry 2 -H 'Cache-Control: no-cache' -o "$VERSION_FILE.tmp" "$RAW_BASE/VERSION?t=$(date +%s)"; then
-            break
-        fi
-        warn "下载 VERSION 失败（第 ${attempt} 次），自动重试..."
-        sleep 2
-        if [[ "$attempt" -eq 3 ]]; then
-            rm -f "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/update.sh.tmp" "$VERSION_FILE.tmp"
-            die "下载 VERSION 失败，已保留原文件。"
-        fi
-    done
-    if [[ ! -s "$VERSION_FILE.tmp" ]]; then
-        rm -f "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/update.sh.tmp" "$VERSION_FILE.tmp"
-        die "下载的 VERSION 为空，已保留原文件。"
+    if [[ ! -s "$update_dir/VERSION" ]]; then
+        die "更新包缺少 VERSION，已取消更新。"
     fi
 
     # 备份旧文件
@@ -154,21 +159,16 @@ main() {
     done
     [[ -f "$VERSION_FILE" ]] && cp -f "$VERSION_FILE" "$VERSION_FILE.bak_$stamp"
 
-    # 给所有新文件加上执行权限（含 update.sh 自身）
-    chmod +x "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/update.sh.tmp"
-
-    # 先替换不会正在运行的脚本文件
-    mv -f "$SCRIPT_DIR/install.sh.tmp" "$SCRIPT_DIR/install.sh"
-    mv -f "$SCRIPT_DIR/jh_manager.sh.tmp" "$SCRIPT_DIR/jh_manager.sh"
-    mv -f "$VERSION_FILE.tmp" "$VERSION_FILE"
+    # 覆盖为新版
+    for f in "${SCRIPT_FILES[@]}"; do
+        install -m 755 "$update_dir/$f" "$SCRIPT_DIR/$f"
+    done
+    install -m 644 "$update_dir/VERSION" "$VERSION_FILE"
 
     echo
     ok "脚本更新完成～"
     echo -e "${C_DIM}旧文件备份在：$SCRIPT_DIR/*.bak_$stamp${C_RESET}"
     echo -e "${C_YELLOW}提示：重启管理系统后生效（当前窗口可以先退出）。${C_RESET}"
-
-    # 最后替换 update.sh 自身，然后立即退出，避免运行中的脚本被替换后出问题
-    mv -f "$SCRIPT_DIR/update.sh.tmp" "$SCRIPT_DIR/update.sh"
     exit 0
 }
 
