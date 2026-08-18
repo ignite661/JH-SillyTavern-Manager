@@ -1,7 +1,8 @@
-v1.0.5
+v1.0.6
 更新日志：
+- 修复：更新脚本增加缓存绕过参数，避免 GitHub raw CDN 返回旧版 VERSION 导致误判“已是最新”
+- 修复：版本相同时支持强制重新下载覆盖，方便手动刷新
 - 修复：默认安装 nodejs-lts，避免 nodejs current 版本导致酒馆前端 webpack 编译失败
-- 修复：Node 软检查底线调整为 v20，兼容 Termux LTS 环境
 - 修复：pnpm 构建许可写入 pnpm-workspace.yaml，并给 pnpm install 增加 --dangerously-allow-all-builds
 - 加固：自动匹配酒馆项目要求的 pnpm 版本，避免 pnpm 版本不兼容
 - 加固：克隆/下载/依赖安装失败时自动重试，减少网络波动导致的中断

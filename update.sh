@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 脚本更新工具 (JH-Updater)
-#  版本: v1.0.5
+#  版本: v1.0.6
 #  作者: 纪贺 (ignite661)
 #  说明: 从 GitHub 拉取最新版 install.sh / jh_manager.sh / update.sh
 #
@@ -68,8 +68,9 @@ main() {
     echo
 
     info "正在从 GitHub 获取最新版本信息..."
+    # 加时间戳参数绕过 raw 的 CDN 缓存，避免拿到旧版 VERSION
     local remote_version
-    remote_version="$(curl -fsSL --connect-timeout 15 "$RAW_BASE/VERSION" 2>/dev/null | head -n1 || true)"
+    remote_version="$(curl -fsSL --connect-timeout 15 -H 'Cache-Control: no-cache' "$RAW_BASE/VERSION?t=$(date +%s)" 2>/dev/null | head -n1 || true)"
     local local_version
     local_version="$(get_local_version)"
 
@@ -82,8 +83,14 @@ main() {
     fi
 
     if [[ "$local_version" == "$remote_version" ]]; then
-        ok "当前已经是最新版本（$remote_version），无需更新。"
-        exit 0
+        echo -e "${C_GREEN}当前已是最新版本（$remote_version）。${C_RESET}"
+        read -rp "是否仍要强制重新下载覆盖？(y/n): " force
+        force="${force//[[:space:]]/}"
+        if [[ ! "$force" =~ ^[yY]$ ]]; then
+            echo "好，已取消。"
+            exit 0
+        fi
+        echo "开始强制更新..."
     fi
 
     echo
@@ -100,7 +107,8 @@ main() {
     local f attempt
     for f in "${SCRIPT_FILES[@]}"; do
         for attempt in 1 2 3; do
-            if curl -fsSL --connect-timeout 20 --retry 2 -o "$SCRIPT_DIR/$f.tmp" "$RAW_BASE/$f"; then
+            # 同样加时间戳绕过 raw CDN 缓存
+            if curl -fsSL --connect-timeout 20 --retry 2 -H 'Cache-Control: no-cache' -o "$SCRIPT_DIR/$f.tmp" "$RAW_BASE/$f?t=$(date +%s)"; then
                 break
             fi
             warn "下载 $f 失败（第 ${attempt} 次），自动重试..."
@@ -118,7 +126,7 @@ main() {
     done
 
     for attempt in 1 2 3; do
-        if curl -fsSL --connect-timeout 20 --retry 2 -o "$VERSION_FILE.tmp" "$RAW_BASE/VERSION"; then
+        if curl -fsSL --connect-timeout 20 --retry 2 -H 'Cache-Control: no-cache' -o "$VERSION_FILE.tmp" "$RAW_BASE/VERSION?t=$(date +%s)"; then
             break
         fi
         warn "下载 VERSION 失败（第 ${attempt} 次），自动重试..."
