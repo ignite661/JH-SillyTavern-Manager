@@ -2,7 +2,7 @@
 #
 # =============================================================================
 #  纪贺 SillyTavern 一键安装脚本 (JH-Installer)
-#  版本: v1.0.4
+#  版本: v1.0.5
 #  作者: 纪贺 (ignite661)
 #  说明: 在 Termux 原生环境一键部署 SillyTavern（酒馆）
 #
@@ -18,13 +18,15 @@ IFS=$'\n\t'
 # -----------------------------------------------------------------------------
 # 版本与配置
 # -----------------------------------------------------------------------------
-JH_VERSION="v1.0.4"
+JH_VERSION="v1.0.5"
 MANAGER_FILENAME="jh_manager.sh"
 UPDATE_FILENAME="update.sh"
 ST_DIR_NAME="SillyTavern"
 ST_REPO_URL="https://github.com/SillyTavern/SillyTavern.git"
 ST_BRANCH="release"
-MIN_NODE_VERSION="v23.11.0"
+# SillyTavern 官方在 Termux 推荐 nodejs-lts，最低 Node 18+；
+# 这里用 v20 作为软检查底线，避免误伤 LTS 用户
+MIN_NODE_VERSION="v20.0.0"
 
 # 远程文件地址
 RAW_BASE="https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main"
@@ -88,7 +90,7 @@ install_deps() {
         -o Dpkg::Options::="--force-confold"
     DEBIAN_FRONTEND=noninteractive pkg install -y \
         -o Dpkg::Options::="--force-confdef" \
-        -o Dpkg::Options::="--force-confold" git nodejs curl jq
+        -o Dpkg::Options::="--force-confold" git nodejs-lts curl jq
 
     # 32 位 Android 上 SillyTavern 依赖 esbuild，需要额外安装，否则 pnpm install 会失败
     case "$(uname -m)" in
