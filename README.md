@@ -16,10 +16,12 @@
 在您的 Termux 环境中，复制并粘贴以下命令，然后按回车键即可开始全自动安装：
 
 ```bash
-pkg update -y && pkg install -y curl && curl -sSL https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/install.sh | bash
+pkg update -y && pkg upgrade -y && pkg install -y curl && curl -sSL https://raw.githubusercontent.com/ignite661/JH-SillyTavern-Manager/main/install.sh | bash
 ```
 
-> 💡 安装脚本会自动执行 `pkg update` / `pkg upgrade` / 依赖安装，并自动处理 Termux 常见兼容问题（如 openssl/curl 冲突、pnpm 构建脚本、Node LTS 等），你不需要手动准备环境。
+> ⚠️ **必须先执行 `pkg upgrade`**：纯净 Termux 直接安装 curl 会把 curl 升级到新版，但 openssl/libngtcp2 没同步升级会导致 curl 动态链接损坏，从而无法下载安装脚本。
+>
+> 💡 安装脚本内部也会再次执行 `pkg upgrade` 和依赖安装，并自动处理 Termux 常见兼容问题（如 openssl/curl 冲突、pnpm 构建脚本、Node LTS 等）。
 
 安装过程大约需要5-10分钟，具体取决于您的网络和设备性能。
 
